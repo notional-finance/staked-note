@@ -72,7 +72,7 @@ contract stNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradea
         uint256 bptBalance = BALANCER_POOL_TOKEN.balanceOf(address(this));
         require(bptTokenAmount <= (bptBalance * MAX_SHORTFALL_WITHDRAW) / 100, "Over Max Shortfall Withdraw");
         // TODO: use safe erc20
-        BALANCER_POOL_TOKEN.transfer(msg.sender, bptTokenAmount);
+        BALANCER_POOL_TOKEN.transfer(owner, bptTokenAmount);
     }
 
     function setSwapFeePercentage(uint256 swapFeePercentage) external onlyOwner {

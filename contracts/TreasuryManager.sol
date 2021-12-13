@@ -56,6 +56,13 @@ contract TreasuryManager is BoringOwnable {
         emit ManagementTransferred(address(0), _manager);
     }
 
+    /// @notice Allows governance to unwind the treasury manager (perhaps when
+    /// upgrading to a new version). Any accumulated ETH balance will go back to
+    /// the owner;
+    function selfDestruct() external onlyOwner {
+        selfdestruct(owner);
+    }
+
     function setManager(address newManager) external onlyOwner {
         emit ManagementTransferred(manager, newManager);
         manager = newManager;

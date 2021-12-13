@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {BoringOwnable} from "./BoringOwnable.sol";
 import {IVault, IAsset} from "interfaces/IVault.sol";
+import "interfaces/IWeightedPool.sol";
 
 contract stNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradeable {
     IVault public immutable BALANCER_VAULT;
@@ -59,11 +60,26 @@ contract stNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradea
         emit OwnershipTransferred(address(0), _owner);
     }
 
+    /** Governance Methods **/
+
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     function setCoolDownTime(uint32 _coolDownTimeInSeconds) external onlyOwner {
         coolDownTimeInSeconds = _coolDownTimeInSeconds;
     }
+
+    function extractTokensForCollateralShortfall(uint256 bptTokenAmount) external onlyOwner {
+        uint256 bptBalance = BALANCER_POOL_TOKEN.balanceOf(address(this));
+        require(bptTokenAmount <= (bptBalance * MAX_SHORTFALL_WITHDRAW) / 100, "Over Max Shortfall Withdraw");
+        // TODO: use safe erc20
+        BALANCER_POOL_TOKEN.transfer(msg.sender, bptTokenAmount);
+    }
+
+    function setSwapFeePercentage(uint256 swapFeePercentage) external onlyOwner {
+        IWeightedPool(address(BALANCER_POOL_TOKEN)).setSwapFeePercentage(swapFeePercentage);
+    }
+
+    /** User Methods **/
 
     function mintFromBPT(uint256 bptAmount) external {
         BALANCER_POOL_TOKEN.transferFrom(msg.sender, address(this), bptAmount);
@@ -128,6 +144,7 @@ contract stNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradea
         );
 
         uint256 bptToTransfer = _min(getPoolTokenShare(stNOTEAmount), coolDown.maxBPTWithdraw);
+        // TODO: use safe erc20
         BALANCER_POOL_TOKEN.transfer(msg.sender, bptToTransfer);
 
         // Reset the cool down back to zero so that the account must initiate it again to redeem
@@ -136,17 +153,16 @@ contract stNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradea
         _burn(msg.sender, stNOTEAmount);
     }
 
+    /** External View Methods **/
+
     function getPoolTokenShare(uint256 stNOTEAmount) public view returns (uint256 bptClaim) {
         uint256 bptBalance = BALANCER_POOL_TOKEN.balanceOf(address(this));
         // BPT and stNOTE are both in 18 decimal precision so no conversion required
         return (bptBalance * stNOTEAmount) / this.totalSupply();
     }
 
-    function extractTokensForCollateralShortfall(uint256 bptTokenAmount) external onlyOwner {
-        uint256 bptBalance = BALANCER_POOL_TOKEN.balanceOf(address(this));
-        require(bptTokenAmount <= (bptBalance * MAX_SHORTFALL_WITHDRAW) / 100, "Over Max Shortfall Withdraw");
-        BALANCER_POOL_TOKEN.transfer(msg.sender, bptTokenAmount);
-    }
+    // TODO: override getPastVotes
+    // Not clear how we should calculate the voting weight of stNOTE
 
     /** Internal Methods **/
 
@@ -187,7 +203,6 @@ contract stNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradea
         // Moves stNOTE checkpoints
         ERC20Votes._afterTokenTransfer(from, to, amount);
     }
-
 
     function _min(uint256 x, uint256 y) internal pure returns (uint256) {
         return x < y ? x : y;

@@ -1,0 +1,24 @@
+compiler:
+  solc:
+    optimizer:
+      enabled: true
+      runs: 200
+    remappings:
+      - "@openzeppelin=OpenZeppelin/openzeppelin-contracts@4.4.0"
+
+networks:
+  default: development
+  development:
+    cmd_settings:
+      port: 8646
+      accounts: 20
+      mnemonic: owner dignity sense
+      log: ganache-out.txt
+      default_balance: 100000
+
+reports:
+  exclude_paths:
+    - interfaces/**/*.*
+
+dependencies:
+  - OpenZeppelin/openzeppelin-contracts@4.4.0

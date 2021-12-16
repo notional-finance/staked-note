@@ -15,18 +15,28 @@ contract TreasuryManager is BoringOwnable {
     address public manager;
     uint32 public refundGasPrice;
 
+    struct PostedLimitOrder {
+        // TODO: limit order fields
+    }
+    mapping(address => PostedLimitOrder) public postedLimitOrders;
+
     event ManagementTransferred(address prevManager, address newManager);
     event RefundGasPriceSet(uint32 prevRefundGasPrice, uint32 newRefundGasPrice);
+    event AssetsHarvested(address[] assets, uint256[] amounts);
 
+    /// @dev Restricted methods for the treasury manager
     modifier onlyManager() {
-        require(msg.sender == manager, "Ownable: caller is not the owner");
+        require(msg.sender == manager, "Unauthorized");
         _;
     }
 
+    /// @notice Will refund gas to the treasury manager
     modifier refundGas() {
         uint256 startGas = gasleft();
         // Fetch this value from storage here so that it is accounted for when
         // we refund the manager for their gas price
+        // TODO: also investigate using the chainlink gas price oracle instead
+        // https://data.chain.link/ethereum/mainnet/gas/fast-gas-gwei
         uint256 _refundGasPrice = refundGasPrice;
 
         _;
@@ -35,6 +45,8 @@ contract TreasuryManager is BoringOwnable {
         address(this).call{value: usedGas * refundGasPrice}("");
     }
 
+    /// @dev This contract is not currently upgradeable, we can make it so and remove the selfdestruct
+    /// call if we like
     constructor (
         address _owner,
         address _manager,
@@ -58,7 +70,7 @@ contract TreasuryManager is BoringOwnable {
 
     /// @notice Allows governance to unwind the treasury manager (perhaps when
     /// upgrading to a new version). Any accumulated ETH balance will go back to
-    /// the owner;
+    /// the owner (the DAO in this case)
     function selfDestruct() external onlyOwner {
         selfdestruct(owner);
     }
@@ -68,34 +80,50 @@ contract TreasuryManager is BoringOwnable {
         manager = newManager;
     }
 
-    function setRefundGas(uint32 _refundGasPrice) external onlyOwner {
+    /// @dev investigate replacing this with the chainlink gas oracle
+    function setRefundGasPrice(uint32 _refundGasPrice) external onlyOwner {
         emit RefundGasPriceSet(refundGasPrice, _refundGasPrice);
         refundGasPrice = _refundGasPrice;
     }
 
-    function harvestReserveBalance(
-        uint16 currencyId,
+    /*** Manager Functionality  ***/
+
+    /// @dev Will need to add a this method as a separate action behind the notional proxy
+    function harvestAssetsFromNotional(address[] calldata assets) external onlyManager refundGas {
+        uint256[] amountsTransferred = NotionalTreasuryAction.transferReserveToTreasury(assets);
+        emit AssetsHarvested(assets, amountsTransferred);
+    }
+
+    function tradeAssetOnDEX(address asset, uint256 amount, bytes calldata dexParameters) external onlyManager refundGas {
+        uint256 ethAmount = _tradeToETHOnDex(asset, amount, dexParameters);
+    }
+
+    /// @dev maybe have a few versions of harvest => trade to eth => invest in note
+    function batchHarvestAndTradeAssets(
+        address[] calldata asset,
+        uint256[] calldata amount,
+        bytes[] calldata dexParameters
+    ) external onlyManager refundGas {
+    }
+
+    function postLimitOrder(
+        address token,
+        uint256 maxSellAmount,
+        uint256 assetETHPrice,
+        uint32 orderExpirationTime
+    ) external onlyManager refundGas {
+        // Get the current chainlink price and require that there is a slippage maximum to the assetETHPrice
+    }
+
+    /// @dev Anyone can take this limit order
+    function takeLimitOrder(
+        address token,
         uint256 amount,
-        bytes calldata dexParameters
-    ) external onlyManager refundGas {
-        uint256 amountTransferred = NotionalTreasuryAction.transferReserveToTreasury(currencyId, amount);
-        uint256 ethAmount = _tradeToETHOnDex(currencyId, amountTransferred, dexParameters);
-        _investETHToBuyNOTE(ethAmount);
+    ) external {
+        // 
     }
 
-    function harvestCompIncentives(
-        bytes calldata dexParameters
-    ) external onlyManager refundGas {
-        uint256 amountTransferred = NotionalTreasuryAction.harvestCOMP();
-        uint256 ethAmount = _tradeToETHOnDex();
-        _investETHToBuyNOTE(ethAmount);
-    }
-
-    function harvestAaveIncentives(
-        bytes calldata dexParameters
-    ) external onlyManager refundGas {
-        uint256 amountTransferred = NotionalTreasuryAction.harvestAAVE();
-        uint256 ethAmount = _tradeToETHOnDex();
+    function investETHToBuyNOTE(uint256 ethAmount) external onlyManager refundGas {
         _investETHToBuyNOTE(ethAmount);
     }
 

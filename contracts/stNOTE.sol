@@ -18,6 +18,7 @@ contract stNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradea
     /// @notice Maximum shotfall withdraw of 30%
     uint256 public constant MAX_SHORTFALL_WITHDRAW = 30;
 
+    /// @notice Tracks an account's cool down time
     struct AccountCoolDown {
         uint32 coolDownExpirationTimestamp;
         uint224 maxBPTWithdraw;
@@ -43,6 +44,7 @@ contract stNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradea
         // Validate that the pool exists
         (address poolAddress, /* */) = _balancerVault.getPool(_noteETHPoolId);
         require(poolAddress != address(0));
+        // TODO: ensure that we have the right underlying NOTE token
         // require(abi.encode(_note.symbol()) == abi.encode("NOTE"));
 
         NOTE = _note;
@@ -62,19 +64,29 @@ contract stNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradea
 
     /** Governance Methods **/
 
+    /// @notice Authorizes the DAO to upgrade this contract
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
+    /// @notice Updates the required cooldown time to redeem
     function setCoolDownTime(uint32 _coolDownTimeInSeconds) external onlyOwner {
         coolDownTimeInSeconds = _coolDownTimeInSeconds;
     }
 
-    function extractTokensForCollateralShortfall(uint256 bptTokenAmount) external onlyOwner {
+    /// @notice Allows the DAO to extract up to 30% of the BPT tokens during a collateral shortfall event
+    function extractTokensForCollateralShortfall(uint256 requestedWithdraw) external onlyOwner {
         uint256 bptBalance = BALANCER_POOL_TOKEN.balanceOf(address(this));
-        require(bptTokenAmount <= (bptBalance * MAX_SHORTFALL_WITHDRAW) / 100, "Over Max Shortfall Withdraw");
+        uint256 maxBPTWithdraw = (bptBalance * MAX_SHORTFALL_WITHDRAW) / 100;
+        // Do not allow a transfer of more than the MAX_SHORTFALL_WITHDRAW percentage. Specifically don't
+        // revert here since there may be a delay between when governance issues the token amount and when
+        // the withdraw actually occurs.
+        uint256 bptTransferAmount = requestedWithdraw > maxBPTWithdraw ? maxBPTWithdraw : requestedWithdraw;
+
         // TODO: use safe erc20
-        BALANCER_POOL_TOKEN.transfer(owner, bptTokenAmount);
+        // TODO: maybe have the pool exit to NOTE and ETH
+        BALANCER_POOL_TOKEN.transfer(owner, bptTransferAmount);
     }
 
+    /// @notice Allows the DAO to set the swap fee on the BPT
     function setSwapFeePercentage(uint256 swapFeePercentage) external onlyOwner {
         IWeightedPool(address(BALANCER_POOL_TOKEN)).setSwapFeePercentage(swapFeePercentage);
     }
@@ -82,6 +94,7 @@ contract stNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradea
     /** User Methods **/
 
     function mintFromBPT(uint256 bptAmount) external {
+        // TODO: use safe erc20
         BALANCER_POOL_TOKEN.transferFrom(msg.sender, address(this), bptAmount);
         _mint(msg.sender, bptAmount);
     }
@@ -162,7 +175,8 @@ contract stNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradea
     }
 
     // TODO: override getPastVotes
-    // Not clear how we should calculate the voting weight of stNOTE
+    // Not clear how we should calculate the voting weight of stNOTE, may need to talk to chainlink
+    // to get a weighted NOTE claim on the underlying
 
     /** Internal Methods **/
 
@@ -173,7 +187,7 @@ contract stNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradea
 
     function _burn(address account, uint256 amount) internal override(ERC20, ERC20Votes) {
         // Handles event emission, balance update and total supply update
-        ERC20Votes._burn(account, amount);
+        super._burn(account, amount);
     }
 
     function _mint(address account, uint256 amount) internal override(ERC20, ERC20Votes) {
@@ -181,7 +195,7 @@ contract stNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradea
         _checkIfCoolDownInEffect(msg.sender);
 
         // Handles event emission, balance update and total supply update
-        ERC20Votes._mint(account, amount);
+        super._mint(account, amount);
     }
 
     function _beforeTokenTransfer(
@@ -193,6 +207,8 @@ contract stNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradea
         // TODO: check if this restriction is necessary
         _checkIfCoolDownInEffect(from);
         _checkIfCoolDownInEffect(to);
+
+        super._beforeTokenTransfer(from, to, amount);
     }
 
     function _afterTokenTransfer(
@@ -201,7 +217,7 @@ contract stNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradea
         uint256 amount
     ) internal override(ERC20, ERC20Votes) {
         // Moves stNOTE checkpoints
-        ERC20Votes._afterTokenTransfer(from, to, amount);
+        super._afterTokenTransfer(from, to, amount);
     }
 
     function _min(uint256 x, uint256 y) internal pure returns (uint256) {

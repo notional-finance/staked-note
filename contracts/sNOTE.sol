@@ -34,6 +34,9 @@ contract sNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradeab
     /// @notice Emitted when a cool down begins
     event CoolDownStarted(address account, uint256 expiration, uint256 maxPoolTokenWithdraw);
 
+    /// @notice Emitted when cool down time is updated
+    event CoolDownUpdated(uint256 newCoolDownTimeSeconds);
+
     constructor(
         IVault _balancerVault,
         bytes32 _noteETHPoolId,
@@ -71,6 +74,7 @@ contract sNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradeab
     /// @notice Updates the required cooldown time to redeem
     function setCoolDownTime(uint32 _coolDownTimeInSeconds) external onlyOwner {
         coolDownTimeInSeconds = _coolDownTimeInSeconds;
+        emit CoolDownUpdated(_coolDownTimeInSeconds);
     }
 
     /// @notice Allows the DAO to extract up to 30% of the BPT tokens during a collateral shortfall event

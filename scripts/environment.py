@@ -54,6 +54,7 @@ class Environment:
             self.sNOTEProxy = self.deployEmptyProxy()
             self.deployBalancerPool(self.config['balancerPoolConfig'], self.sNOTEProxy.address, self.deployer)
             self.sNOTE = self.upgrade_sNOTE()
+            self.initBalancerPool(self.deployer)
 
     def loadNOTE(self, address):
         with open("./abi/notional/note.json", "r") as f:
@@ -139,7 +140,10 @@ class Environment:
             }
         )
 
+def create_environment():
+    testAccounts = TestAccounts()
+    return Environment(EnvironmentConfig, testAccounts.NOTEWhale)
+
 def main():
     testAccounts = TestAccounts()
     env = Environment(EnvironmentConfig, testAccounts.NOTEWhale)
-    env.initBalancerPool(testAccounts.NOTEWhale)

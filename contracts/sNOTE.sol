@@ -5,11 +5,12 @@ import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {BoringOwnable} from "./BoringOwnable.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {BoringOwnable} from "./utils/BoringOwnable.sol";
 import {IVault, IAsset} from "interfaces/IVault.sol";
 import "interfaces/IWeightedPool.sol";
 
-contract stNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradeable {
+contract sNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradeable {
     IVault public immutable BALANCER_VAULT;
     ERC20 public immutable NOTE;
     ERC20 public immutable BALANCER_POOL_TOKEN;
@@ -81,9 +82,8 @@ contract stNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradea
         // the withdraw actually occurs.
         uint256 bptTransferAmount = requestedWithdraw > maxBPTWithdraw ? maxBPTWithdraw : requestedWithdraw;
 
-        // TODO: use safe erc20
         // TODO: maybe have the pool exit to NOTE and ETH
-        BALANCER_POOL_TOKEN.transfer(owner, bptTransferAmount);
+        SafeERC20.safeTransfer(BALANCER_POOL_TOKEN, owner, bptTransferAmount);
     }
 
     /// @notice Allows the DAO to set the swap fee on the BPT
@@ -94,8 +94,7 @@ contract stNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradea
     /** User Methods **/
 
     function mintFromBPT(uint256 bptAmount) external {
-        // TODO: use safe erc20
-        BALANCER_POOL_TOKEN.transferFrom(msg.sender, address(this), bptAmount);
+        SafeERC20.safeTransferFrom(BALANCER_POOL_TOKEN, msg.sender, address(this), bptAmount);
         _mint(msg.sender, bptAmount);
     }
 
@@ -157,8 +156,7 @@ contract stNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradea
         );
 
         uint256 bptToTransfer = _min(getPoolTokenShare(stNOTEAmount), coolDown.maxBPTWithdraw);
-        // TODO: use safe erc20
-        BALANCER_POOL_TOKEN.transfer(msg.sender, bptToTransfer);
+        SafeERC20.safeTransfer(BALANCER_POOL_TOKEN, msg.sender, bptToTransfer);
 
         // Reset the cool down back to zero so that the account must initiate it again to redeem
         delete accountCoolDown[msg.sender];

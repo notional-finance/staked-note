@@ -20,7 +20,7 @@ EnvironmentConfig = {
         "weights": [ 0.2e18, 0.8e18 ],
         "swapFeePercentage": 0.005e18, # 0.5%
         "oracleEnable": True,
-        "initBalances": [ Wei(0.02e18), Wei(80e8) ]
+        "initBalances": [ Wei(0.002e18), Wei(0.01e8) ]
     },
     'sNOTEPoolAddress': None,
     'sNOTEPoolId': None,

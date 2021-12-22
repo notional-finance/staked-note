@@ -5,11 +5,12 @@ import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {BoringOwnable} from "./BoringOwnable.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {BoringOwnable} from "./utils/BoringOwnable.sol";
 import {IVault, IAsset} from "interfaces/IVault.sol";
 import "interfaces/IWeightedPool.sol";
 
-contract stNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradeable {
+contract sNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradeable {
     IVault public immutable BALANCER_VAULT;
     ERC20 public immutable NOTE;
     ERC20 public immutable BALANCER_POOL_TOKEN;
@@ -32,6 +33,12 @@ contract stNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradea
 
     /// @notice Emitted when a cool down begins
     event CoolDownStarted(address account, uint256 expiration, uint256 maxPoolTokenWithdraw);
+
+    /// @notice Emitted when a cool down ends
+    event CoolDownEnded(address account);
+
+    /// @notice Emitted when cool down time is updated
+    event GlobalCoolDownUpdated(uint256 newCoolDownTimeSeconds);
 
     constructor(
         IVault _balancerVault,
@@ -59,6 +66,8 @@ contract stNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradea
     ) external initializer {
         coolDownTimeInSeconds = _coolDownTimeInSeconds;
         owner = _owner;
+        SafeERC20.safeApprove(NOTE, address(BALANCER_VAULT), type(uint256).max);
+
         emit OwnershipTransferred(address(0), _owner);
     }
 
@@ -70,6 +79,7 @@ contract stNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradea
     /// @notice Updates the required cooldown time to redeem
     function setCoolDownTime(uint32 _coolDownTimeInSeconds) external onlyOwner {
         coolDownTimeInSeconds = _coolDownTimeInSeconds;
+        emit GlobalCoolDownUpdated(_coolDownTimeInSeconds);
     }
 
     /// @notice Allows the DAO to extract up to 30% of the BPT tokens during a collateral shortfall event
@@ -81,9 +91,8 @@ contract stNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradea
         // the withdraw actually occurs.
         uint256 bptTransferAmount = requestedWithdraw > maxBPTWithdraw ? maxBPTWithdraw : requestedWithdraw;
 
-        // TODO: use safe erc20
         // TODO: maybe have the pool exit to NOTE and ETH
-        BALANCER_POOL_TOKEN.transfer(owner, bptTransferAmount);
+        SafeERC20.safeTransfer(BALANCER_POOL_TOKEN, owner, bptTransferAmount);
     }
 
     /// @notice Allows the DAO to set the swap fee on the BPT
@@ -94,15 +103,14 @@ contract stNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradea
     /** User Methods **/
 
     function mintFromBPT(uint256 bptAmount) external {
-        // TODO: use safe erc20
-        BALANCER_POOL_TOKEN.transferFrom(msg.sender, address(this), bptAmount);
+        SafeERC20.safeTransferFrom(BALANCER_POOL_TOKEN, msg.sender, address(this), bptAmount);
         _mint(msg.sender, bptAmount);
     }
 
     function mintFromNOTE(uint256 noteAmount) external {
-        // User must set approval on the BalancerVault for NOTE. This is more convenient
-        // because they may want to trade on Balancer as well. Does not require a second
-        // approval on the stNOTE contract
+        // Transfer the NOTE balance into stNOTE first
+        SafeERC20.safeTransferFrom(NOTE, msg.sender, address(this), noteAmount);
+
         IAsset[] memory assets = new IAsset[](2);
         assets[0] = IAsset(address(0));
         assets[1] = IAsset(address(NOTE));
@@ -111,20 +119,18 @@ contract stNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradea
         maxAmountsIn[1] = noteAmount;
 
         uint256 bptBefore = BALANCER_POOL_TOKEN.balanceOf(address(this));
-        uint256 bptAmountOut = 0;
-
         // Will sell some NOTE for ETH to get the correct amount of BPT
         BALANCER_VAULT.joinPool(
             NOTE_ETH_POOL_ID,
-            msg.sender,
+            address(this),
             address(this), // stNOTE will receive the BPT
             IVault.JoinPoolRequest(
                 assets,
                 maxAmountsIn,
                 abi.encode(
-                    IVault.JoinKind.TOKEN_IN_FOR_EXACT_BPT_OUT,
-                    bptAmountOut, // How do we calculate this?
-                    1 // Token Index for NOTE
+                    IVault.JoinKind.EXACT_TOKENS_IN_FOR_BPT_OUT,
+                    maxAmountsIn,
+                    0 // Accept however much BPT the pool will give us
                 ),
                 false // Don't use internal balances
             )
@@ -134,6 +140,12 @@ contract stNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradea
 
         // Balancer pool token amounts must increase
         _mint(msg.sender, bptAfter - bptBefore);
+    }
+
+    function stopCoolDown() public {
+        // Reset the cool down back to zero so that the account must initiate it again to redeem
+        delete accountCoolDown[msg.sender];
+        emit CoolDownEnded(msg.sender);
     }
 
     function startCoolDown() external {
@@ -157,11 +169,10 @@ contract stNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradea
         );
 
         uint256 bptToTransfer = _min(getPoolTokenShare(stNOTEAmount), coolDown.maxBPTWithdraw);
-        // TODO: use safe erc20
-        BALANCER_POOL_TOKEN.transfer(msg.sender, bptToTransfer);
+        SafeERC20.safeTransfer(BALANCER_POOL_TOKEN, msg.sender, bptToTransfer);
 
         // Reset the cool down back to zero so that the account must initiate it again to redeem
-        delete accountCoolDown[msg.sender];
+        stopCoolDown();
 
         _burn(msg.sender, stNOTEAmount);
     }
@@ -172,6 +183,10 @@ contract stNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradea
         uint256 bptBalance = BALANCER_POOL_TOKEN.balanceOf(address(this));
         // BPT and stNOTE are both in 18 decimal precision so no conversion required
         return (bptBalance * stNOTEAmount) / this.totalSupply();
+    }
+
+    function poolTokenShareOf(address account) public view returns (uint256 bptClaim) {
+        return getPoolTokenShare(balanceOf(account));
     }
 
     // TODO: override getPastVotes

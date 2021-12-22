@@ -106,23 +106,6 @@ contract TreasuryManager is BoringOwnable {
     ) external onlyManager refundGas {
     }
 
-    function postLimitOrder(
-        address token,
-        uint256 maxSellAmount,
-        uint256 assetETHPrice,
-        uint32 orderExpirationTime
-    ) external onlyManager refundGas {
-        // Get the current chainlink price and require that there is a slippage maximum to the assetETHPrice
-    }
-
-    /// @dev Anyone can take this limit order
-    function takeLimitOrder(
-        address token,
-        uint256 amount,
-    ) external {
-        // 
-    }
-
     function investETHToBuyNOTE(uint256 ethAmount) external onlyManager refundGas {
         _investETHToBuyNOTE(ethAmount);
     }

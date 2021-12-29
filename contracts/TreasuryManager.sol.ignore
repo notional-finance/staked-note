@@ -3,9 +3,10 @@ pragma solidity ^0.8.9;
 
 import {BoringOwnable} from "./BoringOwnable.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {EIP1271Wallet} from "./EIP1271Wallet.sol";
 import {IVault, IAsset} from "interfaces/IVault.sol";
 
-contract TreasuryManager is BoringOwnable {
+contract TreasuryManager is EIP1271Wallet {
     NotionalTreasuryAction public immutable NOTIONAL;
     ERC20 public immutable NOTE;
     IVault public immutable BALANCER_VAULT;
@@ -49,14 +50,14 @@ contract TreasuryManager is BoringOwnable {
     /// call if we like
     constructor (
         address _owner,
+        address _assetProxy
         address _manager,
         address _notional,
         IVault _balancerVault,
         bytes32 _noteETHPoolId,
         ERC20 _note,
-        address _stNOTE
-    ) {
-        owner = _owner;
+        address _stNOTE,
+    ) EIP1271Wallet(_owner, _assetProxy) {
         manager = _manager;
         NOTIONAL = NotionalTreasuryAction(_notional);
         stNOTE = _stNOTE;

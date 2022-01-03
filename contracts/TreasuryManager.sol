@@ -9,6 +9,7 @@ import {NotionalTreasuryAction} from "interfaces/NotionalTreasuryAction.sol";
 
 contract TreasuryManager is BoringOwnable {
     NotionalTreasuryAction public immutable NOTIONAL;
+    ERC20 public immutable WETH;
     ERC20 public immutable NOTE;
     IVault public immutable BALANCER_VAULT;
     address public immutable stNOTE;
@@ -51,7 +52,8 @@ contract TreasuryManager is BoringOwnable {
     constructor(
         address _owner,
         address _manager,
-        address _notional,
+        NotionalTreasuryAction _notional,
+        ERC20 _weth,
         IVault _balancerVault,
         bytes32 _noteETHPoolId,
         ERC20 _note,
@@ -63,6 +65,7 @@ contract TreasuryManager is BoringOwnable {
         NOTIONAL = NotionalTreasuryAction(_notional);
         stNOTE = _stNOTE;
         NOTE = _note;
+        WETH = _weth;
         BALANCER_VAULT = _balancerVault;
         NOTE_ETH_POOL_ID = _noteETHPoolId;
         ASSET_PROXY = _assetProxy;
@@ -99,26 +102,23 @@ contract TreasuryManager is BoringOwnable {
         emit AssetsHarvested(assets, amountsTransferred);
     }
 
-    function investETHToBuyNOTE(uint256 ethAmount)
+    function investWETHToBuyNOTE(uint256 wethAmount)
         external
         onlyManager
         refundGas
     {
-        _investETHToBuyNOTE(ethAmount);
+        _investWETHToBuyNOTE(wethAmount);
     }
 
-    function _investETHToBuyNOTE(uint256 ethAmount) internal {
-        // How do we calculate this?
-        uint256 bptAmountOut = 0;
+    function _investWETHToBuyNOTE(uint256 wethAmount) internal {
         IAsset[] memory assets = new IAsset[](2);
-        assets[0] = IAsset(address(0));
+        assets[0] = IAsset(address(WETH));
         assets[1] = IAsset(address(NOTE));
         uint256[] memory maxAmountsIn = new uint256[](2);
-        maxAmountsIn[0] = ethAmount;
+        maxAmountsIn[0] = wethAmount;
         maxAmountsIn[1] = 0;
 
-        // Will sell ETH to buy NOTE and transfer the BPT to the stNOTE holders
-        BALANCER_VAULT.joinPool{value: ethAmount}(
+        BALANCER_VAULT.joinPool(
             NOTE_ETH_POOL_ID,
             address(this),
             stNOTE, // stNOTE will receive the BPT
@@ -126,9 +126,9 @@ contract TreasuryManager is BoringOwnable {
                 assets,
                 maxAmountsIn,
                 abi.encode(
-                    IVault.JoinKind.TOKEN_IN_FOR_EXACT_BPT_OUT,
-                    bptAmountOut,
-                    0 // Token Index for ETH
+                    IVault.JoinKind.EXACT_TOKENS_IN_FOR_BPT_OUT,
+                    maxAmountsIn,
+                    0 // Accept however much BPT the pool will give us
                 ),
                 false // Don't use internal balances
             )

@@ -1,28 +1,28 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-import {BoringOwnable} from "./BoringOwnable.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {EIP1271Wallet} from "./EIP1271Wallet.sol";
+import {BoringOwnable} from "./utils/BoringOwnable.sol";
+import {EIP1271Wallet} from "./utils/EIP1271Wallet.sol";
 import {IVault, IAsset} from "interfaces/IVault.sol";
+import {NotionalTreasuryAction} from "interfaces/NotionalTreasuryAction.sol";
 
-contract TreasuryManager is EIP1271Wallet {
+contract TreasuryManager is BoringOwnable {
     NotionalTreasuryAction public immutable NOTIONAL;
     ERC20 public immutable NOTE;
     IVault public immutable BALANCER_VAULT;
     address public immutable stNOTE;
     bytes32 public immutable NOTE_ETH_POOL_ID;
+    address public immutable ASSET_PROXY;
 
     address public manager;
     uint32 public refundGasPrice;
 
-    struct PostedLimitOrder {
-        // TODO: limit order fields
-    }
-    mapping(address => PostedLimitOrder) public postedLimitOrders;
-
     event ManagementTransferred(address prevManager, address newManager);
-    event RefundGasPriceSet(uint32 prevRefundGasPrice, uint32 newRefundGasPrice);
+    event RefundGasPriceSet(
+        uint32 prevRefundGasPrice,
+        uint32 newRefundGasPrice
+    );
     event AssetsHarvested(address[] assets, uint256[] amounts);
 
     /// @dev Restricted methods for the treasury manager
@@ -48,32 +48,31 @@ contract TreasuryManager is EIP1271Wallet {
 
     /// @dev This contract is not currently upgradeable, we can make it so and remove the selfdestruct
     /// call if we like
-    constructor (
+    constructor(
         address _owner,
-        address _assetProxy
         address _manager,
         address _notional,
         IVault _balancerVault,
         bytes32 _noteETHPoolId,
         ERC20 _note,
         address _stNOTE,
-    ) EIP1271Wallet(_owner, _assetProxy) {
+        address _assetProxy
+    ) {
+        owner = _owner;
         manager = _manager;
         NOTIONAL = NotionalTreasuryAction(_notional);
         stNOTE = _stNOTE;
         NOTE = _note;
         BALANCER_VAULT = _balancerVault;
         NOTE_ETH_POOL_ID = _noteETHPoolId;
+        ASSET_PROXY = _assetProxy;
 
         emit OwnershipTransferred(address(0), _owner);
         emit ManagementTransferred(address(0), _manager);
     }
 
-    /// @notice Allows governance to unwind the treasury manager (perhaps when
-    /// upgrading to a new version). Any accumulated ETH balance will go back to
-    /// the owner (the DAO in this case)
-    function selfDestruct() external onlyOwner {
-        selfdestruct(owner);
+    function approveToken(address token, uint256 amount) external onlyManager {
+        IERC20(token).approve(ASSET_PROXY, amount);
     }
 
     function setManager(address newManager) external onlyOwner {
@@ -90,30 +89,25 @@ contract TreasuryManager is EIP1271Wallet {
     /*** Manager Functionality  ***/
 
     /// @dev Will need to add a this method as a separate action behind the notional proxy
-    function harvestAssetsFromNotional(address[] calldata assets) external onlyManager refundGas {
-        uint256[] amountsTransferred = NotionalTreasuryAction.transferReserveToTreasury(assets);
+    function harvestAssetsFromNotional(address[] calldata assets)
+        external
+        onlyManager
+        refundGas
+    {
+        uint256[] memory amountsTransferred = NOTIONAL
+            .transferReserveToTreasury(assets);
         emit AssetsHarvested(assets, amountsTransferred);
     }
 
-    function tradeAssetOnDEX(address asset, uint256 amount, bytes calldata dexParameters) external onlyManager refundGas {
-        uint256 ethAmount = _tradeToETHOnDex(asset, amount, dexParameters);
-    }
-
-    /// @dev maybe have a few versions of harvest => trade to eth => invest in note
-    function batchHarvestAndTradeAssets(
-        address[] calldata asset,
-        uint256[] calldata amount,
-        bytes[] calldata dexParameters
-    ) external onlyManager refundGas {
-    }
-
-    function investETHToBuyNOTE(uint256 ethAmount) external onlyManager refundGas {
+    function investETHToBuyNOTE(uint256 ethAmount)
+        external
+        onlyManager
+        refundGas
+    {
         _investETHToBuyNOTE(ethAmount);
     }
 
-    function _investETHToBuyNOTE(
-        uint256 ethAmount
-    ) internal {
+    function _investETHToBuyNOTE(uint256 ethAmount) internal {
         // How do we calculate this?
         uint256 bptAmountOut = 0;
         IAsset[] memory assets = new IAsset[](2);
@@ -133,11 +127,19 @@ contract TreasuryManager is EIP1271Wallet {
                 maxAmountsIn,
                 abi.encode(
                     IVault.JoinKind.TOKEN_IN_FOR_EXACT_BPT_OUT,
-                    bptAmountOut, 
+                    bptAmountOut,
                     0 // Token Index for ETH
                 ),
                 false // Don't use internal balances
             )
         );
+    }
+
+    function isValidSignature(bytes calldata data, bytes calldata signature)
+        external
+        view
+        returns (bytes4)
+    {
+        return EIP1271Wallet.isValidSignature(data, signature, manager);
     }
 }

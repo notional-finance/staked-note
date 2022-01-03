@@ -1,6 +1,6 @@
 import json
 import eth_abi
-from brownie import accounts, Contract, sNOTE, nProxy, EmptyProxy
+from brownie import accounts, Contract, sNOTE, nProxy, EmptyProxy, VotingPowerKeeper
 from brownie.convert.datatypes import Wei
 
 ETH_ADDRESS = "0x0000000000000000000000000000000000000000"
@@ -55,6 +55,7 @@ class Environment:
             self.deployBalancerPool(self.config['balancerPoolConfig'], self.sNOTEProxy.address, self.deployer)
             self.sNOTE = self.upgrade_sNOTE()
             self.initBalancerPool(self.deployer)
+        self.keeper = self.deployKeeper()
 
     def loadNOTE(self, address):
         with open("./abi/notional/note.json", "r") as f:
@@ -84,6 +85,9 @@ class Environment:
         emptyProxyImpl = EmptyProxy.deploy({"from": self.deployer})
         proxy = nProxy.deploy(emptyProxyImpl.address, bytes(), {"from": self.deployer})
         return Contract.from_abi("Proxy", proxy.address, EmptyProxy.abi)
+
+    def deployKeeper(self):
+        return VotingPowerKeeper.deploy(self.balancerVault.address, {"from": self.deployer})
 
     def upgrade_sNOTE(self):
         sNOTEImpl = sNOTE.deploy(

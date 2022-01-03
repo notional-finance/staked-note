@@ -19,6 +19,8 @@ interface IVault {
      */
     function getPool(bytes32 poolId) external view returns (address, PoolSpecialization);
 
+    function getPoolTokens(bytes32 poolId) external view returns (address[] memory, uint256[] memory);
+
     function joinPool(
         bytes32 poolId,
         address sender,

@@ -28,7 +28,7 @@ library EIP1271Wallet {
         bytes calldata data,
         bytes calldata signature,
         address signer
-    ) external view returns (bytes4) {
+    ) internal view returns (bytes4) {
         (address recovered, ECDSA.RecoverError error) = ECDSA.tryRecover(
             keccak256(
                 abi.encodePacked(

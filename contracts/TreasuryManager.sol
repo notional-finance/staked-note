@@ -1,16 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {BoringOwnable} from "./utils/BoringOwnable.sol";
 import {EIP1271Wallet} from "./utils/EIP1271Wallet.sol";
 import {IVault, IAsset} from "interfaces/IVault.sol";
 import {NotionalTreasuryAction} from "interfaces/NotionalTreasuryAction.sol";
+import {WETH9} from "interfaces/WETH9.sol";
 
 contract TreasuryManager is BoringOwnable {
+    using SafeERC20 for IERC20;
+
     NotionalTreasuryAction public immutable NOTIONAL;
-    ERC20 public immutable WETH;
-    ERC20 public immutable NOTE;
+    WETH9 public immutable WETH;
+    IERC20 public immutable NOTE;
     IVault public immutable BALANCER_VAULT;
     address public immutable stNOTE;
     bytes32 public immutable NOTE_ETH_POOL_ID;
@@ -53,10 +56,10 @@ contract TreasuryManager is BoringOwnable {
         address _owner,
         address _manager,
         NotionalTreasuryAction _notional,
-        ERC20 _weth,
+        WETH9 _weth,
         IVault _balancerVault,
         bytes32 _noteETHPoolId,
-        ERC20 _note,
+        IERC20 _note,
         address _stNOTE,
         address _assetProxy
     ) {
@@ -74,8 +77,18 @@ contract TreasuryManager is BoringOwnable {
         emit ManagementTransferred(address(0), _manager);
     }
 
-    function approveToken(address token, uint256 amount) external onlyManager {
+    function approveToken(address token, uint256 amount) external onlyOwner {
         IERC20(token).approve(ASSET_PROXY, amount);
+    }
+
+    function withdraw(address token, uint256 amount) external onlyOwner {
+        if (amount == type(uint256).max)
+            amount = IERC20(token).balanceOf(address(this));
+        IERC20(token).safeTransfer(owner, amount);
+    }
+
+    function wrapToWETH() external onlyManager {
+        WETH.deposit{value: address(this).balance}();
     }
 
     function setManager(address newManager) external onlyOwner {
@@ -142,4 +155,6 @@ contract TreasuryManager is BoringOwnable {
     {
         return EIP1271Wallet.isValidSignature(data, signature, manager);
     }
+
+    receive() external payable {}
 }

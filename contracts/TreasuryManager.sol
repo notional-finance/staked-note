@@ -28,6 +28,7 @@ contract TreasuryManager is BoringOwnable {
         uint32 newRefundGasPrice
     );
     event AssetsHarvested(address[] assets, uint256[] amounts);
+    event COMPHarvested(address[] ctokens, uint256 amount);
 
     /// @dev Restricted methods for the treasury manager
     modifier onlyManager() {
@@ -113,6 +114,15 @@ contract TreasuryManager is BoringOwnable {
         uint256[] memory amountsTransferred = NOTIONAL
             .transferReserveToTreasury(assets);
         emit AssetsHarvested(assets, amountsTransferred);
+    }
+
+    function harvestCOMPFromNotional(address[] calldata ctokens)
+        external
+        onlyManager
+        refundGas
+    {
+        uint256 amountTransferred = NOTIONAL.claimCOMP(ctokens);
+        emit COMPHarvested(ctokens, amountTransferred);
     }
 
     function investWETHToBuyNOTE(uint256 wethAmount)

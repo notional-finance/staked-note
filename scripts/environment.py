@@ -1,6 +1,6 @@
 import json
 import eth_abi
-from brownie import accounts, Contract, sNOTE, nProxy, EmptyProxy
+from brownie import accounts, Contract, sNOTE, nProxy, EmptyProxy, TreasuryManager
 from brownie.convert.datatypes import Wei
 
 ETH_ADDRESS = "0x0000000000000000000000000000000000000000"
@@ -10,6 +10,8 @@ EnvironmentConfig = {
     "WeightedPool2TokensFactory": "0xA5bf2ddF098bb0Ef6d120C98217dD6B141c74EE0",
     "NOTE": "0xCFEAead4947f0705A14ec42aC3D44129E1Ef3eD5",
     "WETH": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    "Notional": "0x1344a36a1b56144c3bc62e7757377d288fde0369",
+    "ERC20AssetProxy": "0x95E6F48254609A6ee006F7D493c8e5fB97094ceF",
     "balancerPoolConfig": {
         "name": "Staked NOTE Weighted Pool",
         "symbol": "sNOTE-BPT",
@@ -55,6 +57,7 @@ class Environment:
             self.deployBalancerPool(self.config['balancerPoolConfig'], self.sNOTEProxy.address, self.deployer)
             self.sNOTE = self.upgrade_sNOTE()
             self.initBalancerPool(self.deployer)
+        self.treasuryManager = self.deployTreasuryManager()
 
     def loadNOTE(self, address):
         with open("./abi/notional/note.json", "r") as f:
@@ -138,6 +141,20 @@ class Environment:
                 "from": initializer,
                 "value": self.config["balancerPoolConfig"]["initBalances"][0]
             }
+        )
+    
+    def deployTreasuryManager(self):
+        return TreasuryManager.deploy(
+            self.deployer,
+            self.deployer,
+            EnvironmentConfig["Notional"],
+            EnvironmentConfig["WETH"],
+            self.balancerVault,
+            self.poolId,
+            EnvironmentConfig["NOTE"],
+            self.sNOTEProxy.address,
+            EnvironmentConfig["ERC20AssetProxy"],            
+            { "from": self.deployer }
         )
 
 def create_environment():

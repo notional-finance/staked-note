@@ -2,15 +2,13 @@
 pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {BoringOwnable} from "./utils/BoringOwnable.sol";
 import {EIP1271Wallet} from "./utils/EIP1271Wallet.sol";
-import {IVault, IAsset} from "interfaces/balancer/IVault.sol";
-import {NotionalTreasuryAction} from "interfaces/notional/NotionalTreasuryAction.sol";
+import {IVault, IAsset} from "interfaces/IVault.sol";
+import {NotionalTreasuryAction} from "interfaces/NotionalTreasuryAction.sol";
 import {WETH9} from "interfaces/WETH9.sol";
 
-contract TreasuryManager is BoringOwnable, Initializable, UUPSUpgradeable {
+contract TreasuryManager is BoringOwnable {
     using SafeERC20 for IERC20;
 
     NotionalTreasuryAction public immutable NOTIONAL;
@@ -29,7 +27,7 @@ contract TreasuryManager is BoringOwnable, Initializable, UUPSUpgradeable {
         uint32 prevRefundGasPrice,
         uint32 newRefundGasPrice
     );
-    event AssetsHarvested(uint16[] currencies, uint256[] amounts);
+    event AssetsHarvested(address[] assets, uint256[] amounts);
     event COMPHarvested(address[] ctokens, uint256 amount);
 
     /// @dev Restricted methods for the treasury manager
@@ -53,7 +51,11 @@ contract TreasuryManager is BoringOwnable, Initializable, UUPSUpgradeable {
         address(this).call{value: usedGas * refundGasPrice}("");
     }
 
+    /// @dev This contract is not currently upgradeable, we can make it so and remove the selfdestruct
+    /// call if we like
     constructor(
+        address _owner,
+        address _manager,
         NotionalTreasuryAction _notional,
         WETH9 _weth,
         IVault _balancerVault,
@@ -61,7 +63,9 @@ contract TreasuryManager is BoringOwnable, Initializable, UUPSUpgradeable {
         IERC20 _note,
         address _stNOTE,
         address _assetProxy
-    ) initializer {
+    ) {
+        owner = _owner;
+        manager = _manager;
         NOTIONAL = NotionalTreasuryAction(_notional);
         stNOTE = _stNOTE;
         NOTE = _note;
@@ -69,11 +73,7 @@ contract TreasuryManager is BoringOwnable, Initializable, UUPSUpgradeable {
         BALANCER_VAULT = _balancerVault;
         NOTE_ETH_POOL_ID = _noteETHPoolId;
         ASSET_PROXY = _assetProxy;
-    }
 
-    function initialize(address _owner, address _manager) external initializer {
-        owner = _owner;
-        manager = _manager;
         emit OwnershipTransferred(address(0), _owner);
         emit ManagementTransferred(address(0), _manager);
     }
@@ -106,14 +106,14 @@ contract TreasuryManager is BoringOwnable, Initializable, UUPSUpgradeable {
     /*** Manager Functionality  ***/
 
     /// @dev Will need to add a this method as a separate action behind the notional proxy
-    function harvestAssetsFromNotional(uint16[] calldata currencies)
+    function harvestAssetsFromNotional(address[] calldata assets)
         external
         onlyManager
         refundGas
     {
         uint256[] memory amountsTransferred = NOTIONAL
-            .transferReserveToTreasury(currencies);
-        emit AssetsHarvested(currencies, amountsTransferred);
+            .transferReserveToTreasury(assets);
+        emit AssetsHarvested(assets, amountsTransferred);
     }
 
     function harvestCOMPFromNotional(address[] calldata ctokens)
@@ -166,5 +166,5 @@ contract TreasuryManager is BoringOwnable, Initializable, UUPSUpgradeable {
         return EIP1271Wallet.isValidSignature(data, signature, manager);
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+    receive() external payable {}
 }

@@ -1,12 +1,9 @@
 import json
 import eth_abi
-from brownie import accounts, Contract, interface, sNOTE, nProxy, EmptyProxy, TreasuryManager
-from brownie.network.state import Chain
+from brownie import accounts, Contract, sNOTE, nProxy, EmptyProxy, TreasuryManager
 from brownie.convert.datatypes import Wei
 
 ETH_ADDRESS = "0x0000000000000000000000000000000000000000"
-
-chain = Chain()
 
 EnvironmentConfig = {
     "BalancerVault": "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
@@ -25,7 +22,7 @@ EnvironmentConfig = {
         "weights": [ 0.2e18, 0.8e18 ],
         "swapFeePercentage": 0.005e18, # 0.5%
         "oracleEnable": True,
-        "initBalances": [ Wei(20e18), Wei(100e8) ]
+        "initBalances": [ Wei(0.002e18), Wei(0.01e8) ]
     },
     'sNOTEPoolAddress': None,
     'sNOTEPoolId': None,
@@ -42,7 +39,6 @@ class TestAccounts:
         self.ETHWhale = accounts.at("0x7D24796f7dDB17d73e8B1d0A3bbD103FBA2cb2FE", force=True) # A good source of ETH
         self.cETHWhale = accounts.at("0x1a1cd9c606727a7400bb2da6e4d5c70db5b4cade", force=True) # A good source of cETH
         self.NOTEWhale = accounts.at("0x22341fB5D92D3d801144aA5A925F401A91418A05", force=True)
-        self.WETHWhale = accounts.at("0x6555e1cc97d3cba6eaddebbcd7ca51d75771e0b8", force=True)
         self.deployer = accounts.at("0x2a956Fe94ff89D8992107c8eD4805c30ff1106ef", force=True)
 
 class Environment:
@@ -62,9 +58,6 @@ class Environment:
             self.sNOTE = self.upgrade_sNOTE()
             self.initBalancerPool(self.deployer)
         self.treasuryManager = self.deployTreasuryManager()
-        self.WETHToken = self.loadERC20Token("WETH")
-        self.NOTEToken = self.loadERC20Token("NOTE")
-        self.BPTPriceOracle = interface.IPriceOracle(self.balancerPool.address)
 
     def loadNOTE(self, address):
         with open("./abi/notional/note.json", "r") as f:
@@ -88,11 +81,6 @@ class Environment:
         with open("./abi/balancer/poolFactory.json", "r") as f:
             abi = json.load(f)
         return Contract.from_abi('Weighted Pool 2 Token Factory', address, abi)
-
-    def loadERC20Token(self, token):
-        with open("./abi/ERC20.json", "r") as f:
-            abi = json.load(f)
-        return Contract.from_abi(token, EnvironmentConfig[token], abi)
 
     def deployEmptyProxy(self):
         # Deploys an empty proxy to get the sNOTE address
@@ -156,7 +144,9 @@ class Environment:
         )
     
     def deployTreasuryManager(self):
-        treasuryManager = TreasuryManager.deploy(
+        return TreasuryManager.deploy(
+            self.deployer,
+            self.deployer,
             EnvironmentConfig["Notional"],
             EnvironmentConfig["WETH"],
             self.balancerVault,
@@ -166,71 +156,11 @@ class Environment:
             EnvironmentConfig["ERC20AssetProxy"],            
             { "from": self.deployer }
         )
-        initData = treasuryManager.initialize.encode_input(self.deployer, self.deployer)
-        return nProxy.deploy(treasuryManager.address, initData, {"from": self.deployer})
-
-    def buyNOTE(self, amount, account):
-        self.balancerVault.swap([
-            self.poolId,
-            1,
-            EnvironmentConfig["WETH"],
-            EnvironmentConfig["NOTE"],
-            amount,
-            0x0
-        ], [
-            account,
-            False,
-            account,
-            False
-        ], 2**255, chain.time() + 20000, { "from": account })
-
-    def sellNOTE(self, amount, account):
-        self.balancerVault.swap([
-            self.poolId,
-            0,
-            EnvironmentConfig["NOTE"],
-            EnvironmentConfig["WETH"],
-            amount,
-            0x0
-        ], [
-            account,
-            False,
-            account,
-            False
-        ], 0, chain.time() + 20000, { "from": account })
-    
-    def getBPTOraclePrice(self):
-        return self.BPTPriceOracle.getLatest(1)
 
 def create_environment():
     testAccounts = TestAccounts()
     return Environment(EnvironmentConfig, testAccounts.NOTEWhale)
 
-def getSpotPrice(env):
-    tokens = env.balancerVault.getPoolTokens(env.poolId)
-    return ((tokens[1][0] / 1e18) / 0.2) / ((tokens[1][1] / 1e8) / 0.8)
-
-def printPrices(env):
-    spotPrice = getSpotPrice(env)
-    bptOraclePrice = env.BPTPriceOracle.getLatest(1) / 1e18
-    pairOraclePrice = env.BPTPriceOracle.getLatest(0) / 1e18
-    notePoolBalance = env.balancerVault.getPoolTokens(env.poolId)[1][1] / 1e8
-    totalVotingPower = env.sNOTE.getVotingPower(env.sNOTE.totalSupply()) / 1e8
-    print("spotPrice(ETH)={},bptOraclePrice(ETH)={},pairOraclePrice(ETH)={},notePoolBlance={},totalVotingPower={}".format(spotPrice,bptOraclePrice,pairOraclePrice,notePoolBalance,totalVotingPower))    
-
 def main():
     testAccounts = TestAccounts()
     env = Environment(EnvironmentConfig, testAccounts.NOTEWhale)
-    env.WETHToken.approve(env.balancerVault.address, 2 ** 255, {"from": testAccounts.WETHWhale})
-    env.NOTEToken.approve(env.balancerVault.address, 2 ** 255, {"from": testAccounts.NOTEWhale})
-    env.NOTEToken.approve(env.sNOTEProxy.address, 2 ** 255, {"from": testAccounts.WETHWhale})
-    env.NOTEToken.approve(env.balancerVault.address, 2 ** 255, {"from": testAccounts.WETHWhale})
-    env.buyNOTE(1e8, testAccounts.WETHWhale)
-    env.sNOTE.mintFromNOTE(env.NOTEToken.balanceOf(testAccounts.WETHWhale), {"from": testAccounts.WETHWhale})
-    printPrices(env)
-    env.buyNOTE(1e8, testAccounts.WETHWhale)
-    env.sNOTE.mintFromNOTE(env.NOTEToken.balanceOf(testAccounts.WETHWhale), {"from": testAccounts.WETHWhale})
-    printPrices(env)
-    env.buyNOTE(1e8, testAccounts.WETHWhale)
-    env.sNOTE.mintFromNOTE(env.NOTEToken.balanceOf(testAccounts.WETHWhale), {"from": testAccounts.WETHWhale})
-    printPrices(env)

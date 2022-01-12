@@ -6,11 +6,15 @@ import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import {BoringOwnable} from "./utils/BoringOwnable.sol";
-import {IVault, IAsset} from "interfaces/IVault.sol";
-import "interfaces/IWeightedPool.sol";
+import {IVault, IAsset} from "interfaces/balancer/IVault.sol";
+import "interfaces/balancer/IWeightedPool.sol";
+import "interfaces/balancer/IPriceOracle.sol";
 
 contract sNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradeable {
+    using SafeMath for uint256;
+
     IVault public immutable BALANCER_VAULT;
     ERC20 public immutable NOTE;
     ERC20 public immutable BALANCER_POOL_TOKEN;
@@ -18,6 +22,7 @@ contract sNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradeab
 
     /// @notice Maximum shotfall withdraw of 30%
     uint256 public constant MAX_SHORTFALL_WITHDRAW = 30;
+    uint256 public constant BPT_TOKEN_PRECISION = 1e18;
 
     /// @notice Tracks an account's cool down time
     struct AccountCoolDown {
@@ -187,6 +192,21 @@ contract sNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradeab
 
     function poolTokenShareOf(address account) public view returns (uint256 bptClaim) {
         return getPoolTokenShare(balanceOf(account));
+    }
+
+    function getVotingPower(uint256 stNOTEAmount) external view returns (uint256)
+    {
+        uint256 bptPrice = IPriceOracle(address(BALANCER_POOL_TOKEN)).getLatest(IPriceOracle.Variable.BPT_PRICE);
+        uint256 notePrice = IPriceOracle(address(BALANCER_POOL_TOKEN)).getLatest(IPriceOracle.Variable.PAIR_PRICE);
+        uint256 priceRatio = bptPrice * 1e18 / notePrice;
+        uint256 bptBalance = BALANCER_POOL_TOKEN.balanceOf(address(this));
+
+        // Amount_note = Price_NOTE_per_BPT * BPT_supply * 80% (80/20 pool)
+        uint256 noteAmount = priceRatio * bptBalance * 80 / 100;
+
+        // Reduce precision down to 1e8 (NOTE token)
+        noteAmount /= 1e28;
+        return (noteAmount * stNOTEAmount) / this.totalSupply();
     }
 
     // TODO: override getPastVotes

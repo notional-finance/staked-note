@@ -206,12 +206,13 @@ contract sNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradeab
 
         // Reduce precision down to 1e8 (NOTE token)
         noteAmount /= 1e28;
-        return (noteAmount * stNOTEAmount) / this.totalSupply();
-    }
+        uint256 votingPower = (noteAmount * stNOTEAmount) / this.totalSupply();
 
-    // TODO: override getPastVotes
-    // Not clear how we should calculate the voting weight of stNOTE, may need to talk to chainlink
-    // to get a weighted NOTE claim on the underlying
+        (/* */, uint256[] memory balances, /* */ ) = BALANCER_VAULT.getPoolTokens(NOTE_ETH_POOL_ID);
+
+        // Make sure voting power is not greater than NOTE pool balance
+        return votingPower > balances[1] ? balances[1] : votingPower;
+    }
 
     /** Internal Methods **/
 

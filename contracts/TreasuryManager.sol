@@ -36,21 +36,6 @@ contract TreasuryManager is BoringOwnable {
         _;
     }
 
-    /// @notice Will refund gas to the treasury manager
-    modifier refundGas() {
-        uint256 startGas = gasleft();
-        // Fetch this value from storage here so that it is accounted for when
-        // we refund the manager for their gas price
-        // TODO: also investigate using the chainlink gas price oracle instead
-        // https://data.chain.link/ethereum/mainnet/gas/fast-gas-gwei
-        uint256 _refundGasPrice = refundGasPrice;
-
-        _;
-
-        uint256 usedGas = startGas - gasleft();
-        address(this).call{value: usedGas * refundGasPrice}("");
-    }
-
     /// @dev This contract is not currently upgradeable, we can make it so and remove the selfdestruct
     /// call if we like
     constructor(
@@ -97,19 +82,12 @@ contract TreasuryManager is BoringOwnable {
         manager = newManager;
     }
 
-    /// @dev investigate replacing this with the chainlink gas oracle
-    function setRefundGasPrice(uint32 _refundGasPrice) external onlyOwner {
-        emit RefundGasPriceSet(refundGasPrice, _refundGasPrice);
-        refundGasPrice = _refundGasPrice;
-    }
-
     /*** Manager Functionality  ***/
 
     /// @dev Will need to add a this method as a separate action behind the notional proxy
     function harvestAssetsFromNotional(address[] calldata assets)
         external
         onlyManager
-        refundGas
     {
         uint256[] memory amountsTransferred = NOTIONAL
             .transferReserveToTreasury(assets);
@@ -119,7 +97,6 @@ contract TreasuryManager is BoringOwnable {
     function harvestCOMPFromNotional(address[] calldata ctokens)
         external
         onlyManager
-        refundGas
     {
         uint256 amountTransferred = NOTIONAL.claimCOMP(ctokens);
         emit COMPHarvested(ctokens, amountTransferred);
@@ -128,7 +105,6 @@ contract TreasuryManager is BoringOwnable {
     function investWETHToBuyNOTE(uint256 wethAmount)
         external
         onlyManager
-        refundGas
     {
         _investWETHToBuyNOTE(wethAmount);
     }

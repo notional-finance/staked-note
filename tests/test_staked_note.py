@@ -13,6 +13,11 @@ def run_around_tests():
     yield
     chain.revert()
 
+def test_name_and_symbol():
+    env = create_environment()
+    assert env.sNOTE.name() == "Staked NOTE"
+    assert env.sNOTE.symbol() == "sNOTE"
+
 # Governance methods
 def test_upgrade_snote():
     env = create_environment()
@@ -238,8 +243,30 @@ def test_no_transfer_during_cooldown():
     env.sNOTE.transfer(env.deployer, 1e8, {"from": testAccounts.ETHWhale})
     assert env.sNOTE.balanceOf(env.deployer) == 1e8
 
+@pytest.mark.only
 def test_cannot_redeem_more_than_max_bpt():
-    pass
+    env = create_environment()
+    testAccounts = TestAccounts()
+    env.note.transfer(testAccounts.ETHWhale, 1e8, {"from": env.deployer})
+    env.note.approve(env.sNOTE.address, 2**256-1, {"from": testAccounts.ETHWhale})
+    env.note.approve(env.sNOTE.address, 2**256-1, {"from": env.deployer})
+
+    env.sNOTE.mintFromNOTE(5e8, {"from": env.deployer})
+    env.sNOTE.mintFromNOTE(1e8, {"from": testAccounts.ETHWhale})
+
+    bptPoolShare = env.sNOTE.poolTokenShareOf(testAccounts.ETHWhale)
+    (coolDownTime, maxBPTRedeem) = env.sNOTE.startCoolDown({"from": testAccounts.ETHWhale})
+    assert maxBPTRedeem == bptPoolShare
+
+    env.sNOTE.transfer(testAccounts.ETHWhale, env.sNOTE.balanceOf(env.deployer), {"from": env.deployer})
+
+    assert env.sNOTE.poolTokenShareOf(testAccounts.ETHWhale) > maxBPTRedeem
+    chain.mine(timestamp=(chain.time() + 100))
+
+    with brownie.reverts():
+        env.sNOTE.redeem(env.sNOTE.balanceOf(testAccounts.ETHWhale) / 2, {"from": testAccounts.ETHWhale})
+
+    assert False
 
 def test_transfer_with_delegates():
     env = create_environment()

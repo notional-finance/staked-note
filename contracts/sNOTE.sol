@@ -16,6 +16,7 @@ contract sNOTE is ERC20Upgradeable, ERC20VotesUpgradeable, BoringOwnable, UUPSUp
     IVault public immutable BALANCER_VAULT;
     ERC20 public immutable NOTE;
     ERC20 public immutable BALANCER_POOL_TOKEN;
+    ERC20 public immutable WETH;
     bytes32 public immutable NOTE_ETH_POOL_ID;
 
     /// @notice Maximum shotfall withdraw of 30%
@@ -42,22 +43,25 @@ contract sNOTE is ERC20Upgradeable, ERC20VotesUpgradeable, BoringOwnable, UUPSUp
     /// @notice Emitted when cool down time is updated
     event GlobalCoolDownUpdated(uint256 newCoolDownTimeSeconds);
 
-    /// @notice Constructor sets global
+    /// @notice Constructor sets immutable contract addresses
     constructor(
         IVault _balancerVault,
         bytes32 _noteETHPoolId,
-        ERC20 _note
+        ERC20 _note,
+        ERC20 _weth
     ) initializer { 
         // Validate that the pool exists
         (address poolAddress, /* */) = _balancerVault.getPool(_noteETHPoolId);
         require(poolAddress != address(0));
 
+        WETH = _weth;
         NOTE = _note;
         NOTE_ETH_POOL_ID = _noteETHPoolId;
         BALANCER_VAULT = _balancerVault;
         BALANCER_POOL_TOKEN = ERC20(poolAddress);
     }
 
+    /// @notice Initializes sNOTE ERC20 metadata and owner
     function initialize(
         address _owner,
         uint32 _coolDownTimeInSeconds
@@ -89,13 +93,32 @@ contract sNOTE is ERC20Upgradeable, ERC20VotesUpgradeable, BoringOwnable, UUPSUp
     function extractTokensForCollateralShortfall(uint256 requestedWithdraw) external onlyOwner {
         uint256 bptBalance = BALANCER_POOL_TOKEN.balanceOf(address(this));
         uint256 maxBPTWithdraw = (bptBalance * MAX_SHORTFALL_WITHDRAW) / 100;
-        // Do not allow a transfer of more than the MAX_SHORTFALL_WITHDRAW percentage. Specifically don't
+        // Do not allow a withdraw of more than the MAX_SHORTFALL_WITHDRAW percentage. Specifically don't
         // revert here since there may be a delay between when governance issues the token amount and when
         // the withdraw actually occurs.
-        uint256 bptTransferAmount = requestedWithdraw > maxBPTWithdraw ? maxBPTWithdraw : requestedWithdraw;
+        uint256 bptExitAmount = requestedWithdraw > maxBPTWithdraw ? maxBPTWithdraw : requestedWithdraw;
 
-        // TODO: maybe have the pool exit to NOTE and ETH
-        SafeERC20.safeTransfer(BALANCER_POOL_TOKEN, owner, bptTransferAmount);
+        IAsset[] memory assets = new IAsset[](2);
+        assets[0] = IAsset(address(WETH));
+        assets[1] = IAsset(address(NOTE));
+        uint256[] memory minAmountsOut = new uint256[](2);
+        minAmountsOut[0] = 0;
+        minAmountsOut[1] = 0;
+
+        BALANCER_VAULT.exitPool(
+            NOTE_ETH_POOL_ID,
+            address(this),
+            payable(owner), // Owner will receive the NOTE and WETH
+            IVault.ExitPoolRequest(
+                assets,
+                minAmountsOut,
+                abi.encode(
+                    IVault.ExitKind.EXACT_BPT_IN_FOR_TOKENS_OUT,
+                    bptExitAmount
+                ),
+                false // Don't use internal balances
+            )
+        );
     }
 
     /// @notice Allows the DAO to set the swap fee on the BPT
@@ -105,14 +128,19 @@ contract sNOTE is ERC20Upgradeable, ERC20VotesUpgradeable, BoringOwnable, UUPSUp
 
     /** User Methods **/
 
+    /// @notice Mints sNOTE from the underlying BPT token. Will receive 1 sNOTE per BPT.
+    /// @param bptAmount is the amount of BPT to transfer from the msg.sender.
     function mintFromBPT(uint256 bptAmount) external {
-        SafeERC20.safeTransferFrom(BALANCER_POOL_TOKEN, msg.sender, address(this), bptAmount);
+        BALANCER_POOL_TOKEN.safeTransferFrom(msg.sender, address(this), bptAmount);
         _mint(msg.sender, bptAmount);
     }
 
+    /// @notice Mints sNOTE from some amount of NOTE tokens. User will receive 1 sNOTE per underlying
+    /// BPT token minted
+    /// @param noteAmount amount of NOTE to transfer into the sNOTE contract
     function mintFromNOTE(uint256 noteAmount) external {
         // Transfer the NOTE balance into sNOTE first
-        SafeERC20.safeTransferFrom(NOTE, msg.sender, address(this), noteAmount);
+        NOTE.safeTransferFrom(msg.sender, address(this), noteAmount);
 
         IAsset[] memory assets = new IAsset[](2);
         assets[0] = IAsset(address(0));
@@ -145,12 +173,14 @@ contract sNOTE is ERC20Upgradeable, ERC20VotesUpgradeable, BoringOwnable, UUPSUp
         _mint(msg.sender, bptAfter - bptBefore);
     }
 
+    /// @notice Stops a cool down for the sender
     function stopCoolDown() public {
         // Reset the cool down back to zero so that the account must initiate it again to redeem
         delete accountCoolDown[msg.sender];
         emit CoolDownEnded(msg.sender);
     }
 
+    /// @notice Begins a cool down period for the sender, this is required to redeem tokens
     function startCoolDown() external {
         // Cannot start a cool down if there is already one in effect
         _checkIfCoolDownInEffect(msg.sender);
@@ -163,6 +193,9 @@ contract sNOTE is ERC20Upgradeable, ERC20VotesUpgradeable, BoringOwnable, UUPSUp
         emit CoolDownStarted(msg.sender, expiration, maxBPTWithdraw);
     }
 
+    /// @notice Redeems some amount of sNOTE to underlying BPT tokens (which can then be sold for
+    /// NOTE or ETH). An account must have passed its cool down expiration before they can redeem
+    /// @param sNOTEAmount amount of sNOTE to redeem
     function redeem(uint256 sNOTEAmount) external {
         AccountCoolDown memory coolDown = accountCoolDown[msg.sender];
         require(
@@ -172,7 +205,7 @@ contract sNOTE is ERC20Upgradeable, ERC20VotesUpgradeable, BoringOwnable, UUPSUp
         );
 
         uint256 bptToTransfer = _min(getPoolTokenShare(sNOTEAmount), coolDown.maxBPTWithdraw);
-        SafeERC20.safeTransfer(BALANCER_POOL_TOKEN, msg.sender, bptToTransfer);
+        BALANCER_POOL_TOKEN.safeTransfer(msg.sender, bptToTransfer);
 
         // Reset the cool down back to zero so that the account must initiate it again to redeem
         stopCoolDown();
@@ -182,12 +215,14 @@ contract sNOTE is ERC20Upgradeable, ERC20VotesUpgradeable, BoringOwnable, UUPSUp
 
     /** External View Methods **/
 
+    /// @notice Returns how many Balancer pool tokens an sNOTE token amount has a claim on
     function getPoolTokenShare(uint256 sNOTEAmount) public view returns (uint256 bptClaim) {
         uint256 bptBalance = BALANCER_POOL_TOKEN.balanceOf(address(this));
         // BPT and sNOTE are both in 18 decimal precision so no conversion required
-        return (bptBalance * sNOTEAmount) / this.totalSupply();
+        return (bptBalance * sNOTEAmount) / totalSupply();
     }
 
+    /// @notice Returns the pool token share of a specific account
     function poolTokenShareOf(address account) public view returns (uint256 bptClaim) {
         return getPoolTokenShare(balanceOf(account));
     }
@@ -209,6 +244,8 @@ contract sNOTE is ERC20Upgradeable, ERC20VotesUpgradeable, BoringOwnable, UUPSUp
     }
 
     function _mint(address account, uint256 amount) internal override(ERC20Upgradeable, ERC20VotesUpgradeable) {
+        // TODO: this mint is not correct...
+
         // Cannot mint if a cooldown is already in effect
         _checkIfCoolDownInEffect(msg.sender);
 
@@ -221,10 +258,11 @@ contract sNOTE is ERC20Upgradeable, ERC20VotesUpgradeable, BoringOwnable, UUPSUp
         address to,
         uint256 amount
     ) internal override(ERC20Upgradeable) {
-        // Cannot send or receive tokens if a cooldown is in effect
-        // TODO: check if this restriction is necessary
+        // Cannot send tokens if a cooldown is in effect
         _checkIfCoolDownInEffect(from);
-        _checkIfCoolDownInEffect(to);
+        // If the `to` account has a cool down in effect, they cannot redeem more than `maxBPTWithdraw`
+        // which is their poolTokenShare at the time the cool down started. They can receive more tokens
+        // here but they will not be able to redeem them unless they start a new cool down.
 
         super._beforeTokenTransfer(from, to, amount);
     }

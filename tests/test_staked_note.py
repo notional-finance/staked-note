@@ -22,6 +22,7 @@ def test_upgrade_snote():
         env.balancerVault.address,
         env.poolId,
         env.note.address,
+        env.weth.address,
         {"from": env.deployer}
     )
 
@@ -47,11 +48,17 @@ def test_extract_tokens_for_shortfall():
     with brownie.reverts("Ownable: caller is not the owner"):
         env.sNOTE.extractTokensForCollateralShortfall(1, {"from": testAccounts.ETHWhale})
 
+    noteBefore = env.note.balanceOf(env.deployer)
     bptBefore = env.balancerPool.balanceOf(env.sNOTE.address)
-    env.sNOTE.extractTokensForCollateralShortfall(100, {"from": env.deployer})
+    env.sNOTE.extractTokensForCollateralShortfall(bptBefore * 0.3, {"from": env.deployer})
     bptAfter = env.balancerPool.balanceOf(env.sNOTE.address)
-    assert bptBefore - bptAfter == 100
-    assert env.balancerPool.balanceOf(env.deployer) == 100
+    noteAfter = env.note.balanceOf(env.deployer)
+
+    assert pytest.approx(bptAfter / bptBefore) == 0.70
+
+    assert env.balancerPool.balanceOf(env.deployer) == 0
+    assert pytest.approx(env.weth.balanceOf(env.deployer)) == 0.0006e18
+    assert pytest.approx(noteAfter - noteBefore, abs=1) == 0.003e8
 
 def test_extract_tokens_for_shortfall_cap():
     env = create_environment()
@@ -230,6 +237,9 @@ def test_no_transfer_during_cooldown():
     env.sNOTE.stopCoolDown({"from": testAccounts.ETHWhale})
     env.sNOTE.transfer(env.deployer, 1e8, {"from": testAccounts.ETHWhale})
     assert env.sNOTE.balanceOf(env.deployer) == 1e8
+
+def test_cannot_redeem_more_than_max_bpt():
+    pass
 
 def test_transfer_with_delegates():
     env = create_environment()

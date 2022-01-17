@@ -194,10 +194,16 @@ contract sNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradeab
         return getPoolTokenShare(balanceOf(account));
     }
 
-    function getVotingPower(uint256 stNOTEAmount) external view returns (uint256)
-    {
+    function getVotingPower(uint256 stNOTEAmount) external view returns (uint256) {
+        // Gets the BPT token price (in ETH)
         uint256 bptPrice = IPriceOracle(address(BALANCER_POOL_TOKEN)).getLatest(IPriceOracle.Variable.BPT_PRICE);
+        // Gets the NOTE token price (in ETH)
         uint256 notePrice = IPriceOracle(address(BALANCER_POOL_TOKEN)).getLatest(IPriceOracle.Variable.PAIR_PRICE);
+        
+        // Since both bptPrice and notePrice are denominated in ETH, we can use
+        // this formula to calculate noteAmount
+        // bptBalance * bptPrice = notePrice * noteAmount
+        // noteAmount = bptPrice/notePrice * bptBalance
         uint256 priceRatio = bptPrice * 1e18 / notePrice;
         uint256 bptBalance = BALANCER_POOL_TOKEN.balanceOf(address(this));
 
@@ -206,12 +212,8 @@ contract sNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradeab
 
         // Reduce precision down to 1e8 (NOTE token)
         noteAmount /= 1e28;
-        uint256 votingPower = (noteAmount * stNOTEAmount) / this.totalSupply();
 
-        (/* */, uint256[] memory balances, /* */ ) = BALANCER_VAULT.getPoolTokens(NOTE_ETH_POOL_ID);
-
-        // Make sure voting power is not greater than NOTE pool balance
-        return votingPower > balances[1] ? balances[1] : votingPower;
+        return (noteAmount * stNOTEAmount) / this.totalSupply();
     }
 
     /** Internal Methods **/

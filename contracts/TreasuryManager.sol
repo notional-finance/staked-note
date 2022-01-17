@@ -15,7 +15,7 @@ contract TreasuryManager is BoringOwnable {
     WETH9 public immutable WETH;
     IERC20 public immutable NOTE;
     IVault public immutable BALANCER_VAULT;
-    address public immutable stNOTE;
+    address public immutable sNOTE;
     bytes32 public immutable NOTE_ETH_POOL_ID;
     address public immutable ASSET_PROXY;
 
@@ -61,13 +61,13 @@ contract TreasuryManager is BoringOwnable {
         IVault _balancerVault,
         bytes32 _noteETHPoolId,
         IERC20 _note,
-        address _stNOTE,
+        address _sNOTE,
         address _assetProxy
     ) {
         owner = _owner;
         manager = _manager;
         NOTIONAL = NotionalTreasuryAction(_notional);
-        stNOTE = _stNOTE;
+        sNOTE = _sNOTE;
         NOTE = _note;
         WETH = _weth;
         BALANCER_VAULT = _balancerVault;
@@ -144,7 +144,7 @@ contract TreasuryManager is BoringOwnable {
         BALANCER_VAULT.joinPool(
             NOTE_ETH_POOL_ID,
             address(this),
-            stNOTE, // stNOTE will receive the BPT
+            sNOTE, // sNOTE will receive the BPT
             IVault.JoinPoolRequest(
                 assets,
                 maxAmountsIn,

@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {BoringOwnable} from "./utils/BoringOwnable.sol";
+import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin-upgradeable/contracts/token/ERC20/extensions/ERC20VotesUpgradeable.sol";
+import "@openzeppelin-upgradeable/contracts/token/ERC20/ERC20Upgradeable.sol";
 import {IVault, IAsset} from "interfaces/IVault.sol";
 import "interfaces/IWeightedPool.sol";
 
-contract sNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradeable {
+contract sNOTE is ERC20Upgradeable, ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable {
+    using SafeERC20 for ERC20;
+
     IVault public immutable BALANCER_VAULT;
     ERC20 public immutable NOTE;
     ERC20 public immutable BALANCER_POOL_TOKEN;
@@ -25,10 +27,10 @@ contract sNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradeab
         uint224 maxBPTWithdraw;
     }
 
-    /// @notice Number of seconds that need to pass before stNOTE can be redeemed
+    /// @notice Number of seconds that need to pass before sNOTE can be redeemed
     uint32 public coolDownTimeInSeconds;
 
-    /// @notice Mapping between stNOTE holders and their current cooldown status
+    /// @notice Mapping between sNOTE holders and their current cooldown status
     mapping(address => AccountCoolDown) public accountCoolDown;
 
     /// @notice Emitted when a cool down begins
@@ -40,19 +42,15 @@ contract sNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradeab
     /// @notice Emitted when cool down time is updated
     event GlobalCoolDownUpdated(uint256 newCoolDownTimeSeconds);
 
+    /// @notice Constructor sets global
     constructor(
         IVault _balancerVault,
         bytes32 _noteETHPoolId,
         ERC20 _note
-    ) 
-        ERC20("Staked NOTE", "stNOTE")
-        ERC20Permit("Staked NOTE")
-        initializer { 
+    ) initializer { 
         // Validate that the pool exists
         (address poolAddress, /* */) = _balancerVault.getPool(_noteETHPoolId);
         require(poolAddress != address(0));
-        // TODO: ensure that we have the right underlying NOTE token
-        // require(abi.encode(_note.symbol()) == abi.encode("NOTE"));
 
         NOTE = _note;
         NOTE_ETH_POOL_ID = _noteETHPoolId;
@@ -64,9 +62,14 @@ contract sNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradeab
         address _owner,
         uint32 _coolDownTimeInSeconds
     ) external initializer {
+        string memory _name = "Staked NOTE";
+        string memory _symbol = "sNOTE";
+        __ERC20_init(_name, _symbol);
+        __ERC20Permit_init(_name);
+
         coolDownTimeInSeconds = _coolDownTimeInSeconds;
         owner = _owner;
-        SafeERC20.safeApprove(NOTE, address(BALANCER_VAULT), type(uint256).max);
+        NOTE.safeApprove(address(BALANCER_VAULT), type(uint256).max);
 
         emit OwnershipTransferred(address(0), _owner);
     }
@@ -108,7 +111,7 @@ contract sNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradeab
     }
 
     function mintFromNOTE(uint256 noteAmount) external {
-        // Transfer the NOTE balance into stNOTE first
+        // Transfer the NOTE balance into sNOTE first
         SafeERC20.safeTransferFrom(NOTE, msg.sender, address(this), noteAmount);
 
         IAsset[] memory assets = new IAsset[](2);
@@ -123,7 +126,7 @@ contract sNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradeab
         BALANCER_VAULT.joinPool(
             NOTE_ETH_POOL_ID,
             address(this),
-            address(this), // stNOTE will receive the BPT
+            address(this), // sNOTE will receive the BPT
             IVault.JoinPoolRequest(
                 assets,
                 maxAmountsIn,
@@ -160,7 +163,7 @@ contract sNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradeab
         emit CoolDownStarted(msg.sender, expiration, maxBPTWithdraw);
     }
 
-    function redeem(uint256 stNOTEAmount) external {
+    function redeem(uint256 sNOTEAmount) external {
         AccountCoolDown memory coolDown = accountCoolDown[msg.sender];
         require(
             coolDown.coolDownExpirationTimestamp != 0 &&
@@ -168,21 +171,21 @@ contract sNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradeab
             "Cool Down Not Expired"
         );
 
-        uint256 bptToTransfer = _min(getPoolTokenShare(stNOTEAmount), coolDown.maxBPTWithdraw);
+        uint256 bptToTransfer = _min(getPoolTokenShare(sNOTEAmount), coolDown.maxBPTWithdraw);
         SafeERC20.safeTransfer(BALANCER_POOL_TOKEN, msg.sender, bptToTransfer);
 
         // Reset the cool down back to zero so that the account must initiate it again to redeem
         stopCoolDown();
 
-        _burn(msg.sender, stNOTEAmount);
+        _burn(msg.sender, sNOTEAmount);
     }
 
     /** External View Methods **/
 
-    function getPoolTokenShare(uint256 stNOTEAmount) public view returns (uint256 bptClaim) {
+    function getPoolTokenShare(uint256 sNOTEAmount) public view returns (uint256 bptClaim) {
         uint256 bptBalance = BALANCER_POOL_TOKEN.balanceOf(address(this));
-        // BPT and stNOTE are both in 18 decimal precision so no conversion required
-        return (bptBalance * stNOTEAmount) / this.totalSupply();
+        // BPT and sNOTE are both in 18 decimal precision so no conversion required
+        return (bptBalance * sNOTEAmount) / this.totalSupply();
     }
 
     function poolTokenShareOf(address account) public view returns (uint256 bptClaim) {
@@ -190,7 +193,7 @@ contract sNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradeab
     }
 
     // TODO: override getPastVotes
-    // Not clear how we should calculate the voting weight of stNOTE, may need to talk to chainlink
+    // Not clear how we should calculate the voting weight of sNOTE, may need to talk to chainlink
     // to get a weighted NOTE claim on the underlying
 
     /** Internal Methods **/
@@ -200,12 +203,12 @@ contract sNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradeab
         require(expiration == 0 || expiration < block.timestamp, "Cool Down Not Expired");
     }
 
-    function _burn(address account, uint256 amount) internal override(ERC20, ERC20Votes) {
+    function _burn(address account, uint256 amount) internal override(ERC20Upgradeable, ERC20VotesUpgradeable) {
         // Handles event emission, balance update and total supply update
         super._burn(account, amount);
     }
 
-    function _mint(address account, uint256 amount) internal override(ERC20, ERC20Votes) {
+    function _mint(address account, uint256 amount) internal override(ERC20Upgradeable, ERC20VotesUpgradeable) {
         // Cannot mint if a cooldown is already in effect
         _checkIfCoolDownInEffect(msg.sender);
 
@@ -217,7 +220,7 @@ contract sNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradeab
         address from,
         address to,
         uint256 amount
-    ) internal override(ERC20) {
+    ) internal override(ERC20Upgradeable) {
         // Cannot send or receive tokens if a cooldown is in effect
         // TODO: check if this restriction is necessary
         _checkIfCoolDownInEffect(from);
@@ -230,8 +233,8 @@ contract sNOTE is ERC20, ERC20Votes, BoringOwnable, Initializable, UUPSUpgradeab
         address from,
         address to,
         uint256 amount
-    ) internal override(ERC20, ERC20Votes) {
-        // Moves stNOTE checkpoints
+    ) internal override(ERC20Upgradeable, ERC20VotesUpgradeable) {
+        // Moves sNOTE checkpoints
         super._afterTokenTransfer(from, to, amount);
     }
 

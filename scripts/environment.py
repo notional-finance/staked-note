@@ -25,7 +25,7 @@ EnvironmentConfig = {
         "weights": [ 0.2e18, 0.8e18 ],
         "swapFeePercentage": 0.005e18, # 0.5%
         "oracleEnable": True,
-        "initBalances": [ Wei(20e18), Wei(100e8) ]
+        "initBalances": [ Wei(0.002e18), Wei(0.01e8) ]
     },
     'sNOTEPoolAddress': None,
     'sNOTEPoolId': None,
@@ -52,6 +52,7 @@ class Environment:
         self.balancerVault = self.loadBalancerVault(self.config["BalancerVault"])
         self.pool2TokensFactory = self.loadPool2TokensFactory(self.config["WeightedPool2TokensFactory"])
         self.note = self.loadNOTE(self.config["NOTE"])
+        self.weth = self.load_WETH(self.config["WETH"])
         if self.config['sNOTEPoolAddress']:
             self.balancerPool = self.loadBalancerPool(self.config['sNOTEPoolAddress'])
             self.poolId = self.config['sNOTEPoolId']
@@ -73,6 +74,11 @@ class Environment:
 
     def load_sNOTE(self, address):
         return Contract.from_abi('sNOTE', address, sNOTE.abi)
+
+    def load_WETH(self, address):
+        with open("./abi/ERC20.json", "r") as f:
+            abi = json.load(f)
+        return Contract.from_abi('WETH', address, abi)
 
     def loadBalancerPool(self, address):
         with open("./abi/balancer/pool.json", "r") as f:
@@ -105,6 +111,7 @@ class Environment:
             self.balancerVault.address,
             self.poolId,
             self.note.address,
+            self.weth.address,
             {"from": self.deployer}
         )
 

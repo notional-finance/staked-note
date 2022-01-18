@@ -17,7 +17,7 @@ contract TreasuryManager is BoringOwnable, Initializable, UUPSUpgradeable {
     WETH9 public immutable WETH;
     IERC20 public immutable NOTE;
     IVault public immutable BALANCER_VAULT;
-    address public immutable stNOTE;
+    address public immutable sNOTE;
     bytes32 public immutable NOTE_ETH_POOL_ID;
     address public immutable ASSET_PROXY;
 
@@ -38,32 +38,17 @@ contract TreasuryManager is BoringOwnable, Initializable, UUPSUpgradeable {
         _;
     }
 
-    /// @notice Will refund gas to the treasury manager
-    modifier refundGas() {
-        uint256 startGas = gasleft();
-        // Fetch this value from storage here so that it is accounted for when
-        // we refund the manager for their gas price
-        // TODO: also investigate using the chainlink gas price oracle instead
-        // https://data.chain.link/ethereum/mainnet/gas/fast-gas-gwei
-        uint256 _refundGasPrice = refundGasPrice;
-
-        _;
-
-        uint256 usedGas = startGas - gasleft();
-        address(this).call{value: usedGas * refundGasPrice}("");
-    }
-
     constructor(
         NotionalTreasuryAction _notional,
         WETH9 _weth,
         IVault _balancerVault,
         bytes32 _noteETHPoolId,
         IERC20 _note,
-        address _stNOTE,
+        address _sNOTE,
         address _assetProxy
     ) initializer {
         NOTIONAL = NotionalTreasuryAction(_notional);
-        stNOTE = _stNOTE;
+        sNOTE = _sNOTE;
         NOTE = _note;
         WETH = _weth;
         BALANCER_VAULT = _balancerVault;
@@ -97,19 +82,12 @@ contract TreasuryManager is BoringOwnable, Initializable, UUPSUpgradeable {
         manager = newManager;
     }
 
-    /// @dev investigate replacing this with the chainlink gas oracle
-    function setRefundGasPrice(uint32 _refundGasPrice) external onlyOwner {
-        emit RefundGasPriceSet(refundGasPrice, _refundGasPrice);
-        refundGasPrice = _refundGasPrice;
-    }
-
     /*** Manager Functionality  ***/
 
     /// @dev Will need to add a this method as a separate action behind the notional proxy
     function harvestAssetsFromNotional(uint16[] calldata currencies)
         external
         onlyManager
-        refundGas
     {
         uint256[] memory amountsTransferred = NOTIONAL
             .transferReserveToTreasury(currencies);
@@ -119,7 +97,6 @@ contract TreasuryManager is BoringOwnable, Initializable, UUPSUpgradeable {
     function harvestCOMPFromNotional(address[] calldata ctokens)
         external
         onlyManager
-        refundGas
     {
         uint256 amountTransferred = NOTIONAL.claimCOMP(ctokens);
         emit COMPHarvested(ctokens, amountTransferred);
@@ -128,7 +105,6 @@ contract TreasuryManager is BoringOwnable, Initializable, UUPSUpgradeable {
     function investWETHToBuyNOTE(uint256 wethAmount)
         external
         onlyManager
-        refundGas
     {
         _investWETHToBuyNOTE(wethAmount);
     }
@@ -144,7 +120,7 @@ contract TreasuryManager is BoringOwnable, Initializable, UUPSUpgradeable {
         BALANCER_VAULT.joinPool(
             NOTE_ETH_POOL_ID,
             address(this),
-            stNOTE, // stNOTE will receive the BPT
+            sNOTE, // sNOTE will receive the BPT
             IVault.JoinPoolRequest(
                 assets,
                 maxAmountsIn,

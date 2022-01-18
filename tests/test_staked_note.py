@@ -13,6 +13,11 @@ def run_around_tests():
     yield
     chain.revert()
 
+def test_name_and_symbol():
+    env = create_environment()
+    assert env.sNOTE.name() == "Staked NOTE"
+    assert env.sNOTE.symbol() == "sNOTE"
+
 # Governance methods
 def test_upgrade_snote():
     env = create_environment()
@@ -22,6 +27,7 @@ def test_upgrade_snote():
         env.balancerVault.address,
         env.poolId,
         env.note.address,
+        env.weth.address,
         {"from": env.deployer}
     )
 
@@ -47,11 +53,17 @@ def test_extract_tokens_for_shortfall():
     with brownie.reverts("Ownable: caller is not the owner"):
         env.sNOTE.extractTokensForCollateralShortfall(1, {"from": testAccounts.ETHWhale})
 
+    noteBefore = env.note.balanceOf(env.deployer)
     bptBefore = env.balancerPool.balanceOf(env.sNOTE.address)
-    env.sNOTE.extractTokensForCollateralShortfall(100, {"from": env.deployer})
+    env.sNOTE.extractTokensForCollateralShortfall(bptBefore * 0.3, {"from": env.deployer})
     bptAfter = env.balancerPool.balanceOf(env.sNOTE.address)
-    assert bptBefore - bptAfter == 100
-    assert env.balancerPool.balanceOf(env.deployer) == 100
+    noteAfter = env.note.balanceOf(env.deployer)
+
+    assert pytest.approx(bptAfter / bptBefore) == 0.70
+
+    assert env.balancerPool.balanceOf(env.deployer) == 0
+    assert pytest.approx(env.weth.balanceOf(env.deployer)) == 6e18
+    assert pytest.approx(noteAfter - noteBefore, abs=1) == 30e8
 
 def test_extract_tokens_for_shortfall_cap():
     env = create_environment()
@@ -61,7 +73,6 @@ def test_extract_tokens_for_shortfall_cap():
     env.sNOTE.extractTokensForCollateralShortfall(bptBefore, {"from": env.deployer})
     bptAfter = env.balancerPool.balanceOf(env.sNOTE.address)
     assert pytest.approx(bptAfter / bptBefore, rel=1e-9) == 0.7
-    assert env.balancerPool.balanceOf(env.deployer) == bptBefore - bptAfter
 
 def test_set_swap_fee_percentage():
     env = create_environment()
@@ -106,76 +117,73 @@ def test_mint_from_bpt():
     assert env.balancerPool.balanceOf(testAccounts.ETHWhale) == 0
     assert env.sNOTE.balanceOf(testAccounts.ETHWhale) == bptBalance
 
-def test_mint_from_note():
-    env = create_environment()
-    testAccounts = TestAccounts()
-    env.note.transfer(testAccounts.ETHWhale, 100e8, {"from": env.deployer})
-    env.note.approve(env.sNOTE.address, 2**256-1, {"from": testAccounts.ETHWhale})
-
-    env.sNOTE.mintFromNOTE(1e8, {"from": testAccounts.ETHWhale})
-    # This should be the same as adding 1e8 NOTE above
-    assert env.sNOTE.balanceOf(testAccounts.ETHWhale) == 566735618736030400
-
+@pytest.mark.only
 def test_pool_share_ratio():
     env = create_environment()
     testAccounts = TestAccounts()
-    env.note.transfer(testAccounts.ETHWhale, 1e8, {"from": env.deployer})
+    env.note.transfer(testAccounts.ETHWhale, 150e8, {"from": env.deployer})
     env.note.transfer(testAccounts.DAIWhale, 100e8, {"from": env.deployer})
     env.note.approve(env.sNOTE.address, 2**256-1, {"from": testAccounts.ETHWhale})
     env.note.approve(env.sNOTE.address, 2**256-1, {"from": testAccounts.DAIWhale})
 
-    env.sNOTE.mintFromNOTE(1e8, {"from": testAccounts.ETHWhale})
-    env.sNOTE.mintFromNOTE(100e8, {"from": testAccounts.DAIWhale})
-
-    sNOTEBalance1 = env.sNOTE.balanceOf(testAccounts.ETHWhale)
-    poolTokenShare1 = env.sNOTE.getPoolTokenShare(sNOTEBalance1)
-    sNOTEBalance2 = env.sNOTE.balanceOf(testAccounts.DAIWhale)
-    poolTokenShare2 = env.sNOTE.getPoolTokenShare(sNOTEBalance2)
-    # The relationship between sNOTEBalance2 and sNOTEBalance1 are non-linear due to 
-    # slippage in the underlying balancer pool
-    assert sNOTEBalance2 / sNOTEBalance1 == poolTokenShare2 / poolTokenShare1
-
-@pytest.mark.skip
-def test_increase_pool_share():
-    env = create_environment()
-    testAccounts = TestAccounts()
-    env.note.transfer(testAccounts.ETHWhale, 1e8, {"from": env.deployer})
-    env.note.approve(env.sNOTE.address, 2**256-1, {"from": testAccounts.ETHWhale})
-
-    env.sNOTE.mintFromNOTE(1e8, {"from": testAccounts.ETHWhale})
-    poolTokenShare = env.sNOTE.poolTokenShareOf(testAccounts.ETHWhale)
-
-    # NOTE whale generates some more BPT
     # [EXACT_TOKENS_IN_FOR_BPT_OUT, [ETH, NOTE], minBPTOut]
+    env.note.approve(env.balancerVault.address, 2**256-1, {"from": testAccounts.ETHWhale})
     userData = eth_abi.encode_abi(
         ['uint256', 'uint256[]', 'uint256'],
-        [1, [0, Wei(10e8)], 0]
+        [1, [0, Wei(1e8)], 0]
     )
 
-    txn = env.balancerVault.joinPool(
+    env.balancerVault.joinPool(
         env.poolId,
-        env.deployer,
-        env.deployer,
+        testAccounts.ETHWhale,
+        testAccounts.ETHWhale,
         (
             [ETH_ADDRESS, env.note.address],
-            [0, 10e8],
+            [0, 50e8],
             userData,
             False
         ),
-        { "from": env.deployer }
+        { "from": testAccounts.ETHWhale }
     )
 
-    bptBalance = env.balancerPool.balanceOf(env.deployer.address)
-    # Donates to the balance to sNOTE
-    env.balancerPool.transfer(
-        env.sNOTE.address,
-        bptBalance,
-        {"from": env.deployer.address}
-    )
+    assert env.sNOTE.totalSupply() == 0
+    initialBPTBalance = env.balancerPool.balanceOf(env.sNOTE.address)
+    txn1 = env.sNOTE.mintFromNOTE(100e8, {"from": testAccounts.ETHWhale})
+    bptFrom1 = txn1.events['Transfer'][2]['value']
+    bptAdded = env.balancerPool.balanceOf(testAccounts.ETHWhale) / 2
 
-    newPoolTokenShare = env.sNOTE.poolTokenShareOf(testAccounts.ETHWhale)
-    # TODO: This is some other multiple of the share...
-    assert newPoolTokenShare / poolTokenShare == 10
+    env.balancerPool.transfer(env.sNOTE.address, bptAdded, {"from": testAccounts.ETHWhale})
+    txn2 = env.sNOTE.mintFromNOTE(100e8, {"from": testAccounts.DAIWhale})
+    bptFrom2 = txn2.events['Transfer'][2]['value']
+
+    # Test that the pool share of the second minter does not accrue balances of those from the first
+    poolTokenShare1 = env.sNOTE.poolTokenShareOf(testAccounts.ETHWhale)
+    poolTokenShare2 = env.sNOTE.poolTokenShareOf(testAccounts.DAIWhale)
+    assert pytest.approx(poolTokenShare1, abs=1) == bptFrom1 + bptAdded + initialBPTBalance
+    assert pytest.approx(poolTokenShare2, abs=1) == bptFrom2
+
+    # Test that additional tokens are split between the two holders proportionally
+    env.balancerPool.transfer(env.sNOTE.address, bptAdded, {"from": testAccounts.ETHWhale})
+    sNOTEBalance1 = env.sNOTE.balanceOf(testAccounts.ETHWhale)
+    sNOTEBalance2 = env.sNOTE.balanceOf(testAccounts.DAIWhale)
+    totalSupply = env.sNOTE.totalSupply()
+    poolTokenShare3 = env.sNOTE.poolTokenShareOf(testAccounts.ETHWhale)
+    poolTokenShare4 = env.sNOTE.poolTokenShareOf(testAccounts.DAIWhale)
+    assert pytest.approx(poolTokenShare3, abs=1000) == bptFrom1 + bptAdded + initialBPTBalance + (bptAdded * sNOTEBalance1 / totalSupply)
+    assert pytest.approx(poolTokenShare4, abs=1000) == bptFrom2 + (bptAdded * sNOTEBalance2 / totalSupply)
+
+def test_mint_from_eth():
+    env = create_environment()
+    testAccounts = TestAccounts()
+    env.sNOTE.mintFromETH({"from": testAccounts.ETHWhale, "value": 1e18})
+    assert env.sNOTE.balanceOf(testAccounts.ETHWhale) > 0
+
+def test_mint_from_weth():
+    env = create_environment()
+    testAccounts = TestAccounts()
+    env.weth.approve(env.sNOTE.address, 2**255 - 1, {"from": testAccounts.WETHWhale})
+    env.sNOTE.mintFromWETH(1e18, {"from": testAccounts.WETHWhale})
+    assert env.sNOTE.balanceOf(testAccounts.WETHWhale) > 0
 
 def test_redeem():
     env = create_environment()
@@ -186,22 +194,28 @@ def test_redeem():
     env.sNOTE.mintFromNOTE(1e8, {"from": testAccounts.ETHWhale})
 
     # Cannot redeem without cooldown
-    with brownie.reverts("Cool Down Not Expired"):
+    with brownie.reverts("Not in Redemption Window"):
         env.sNOTE.redeem(env.sNOTE.balanceOf(testAccounts.ETHWhale), {"from": testAccounts.ETHWhale})
 
     env.sNOTE.startCoolDown({"from": testAccounts.ETHWhale})
     chain.mine(timestamp=(chain.time() + 5))
 
-    # Cannot redeem before cooldown expires
-    with brownie.reverts("Cool Down Not Expired"):
+    # Cannot redeem before window begins
+    with brownie.reverts("Not in Redemption Window"):
         env.sNOTE.redeem(env.sNOTE.balanceOf(testAccounts.ETHWhale), {"from": testAccounts.ETHWhale})
 
     chain.mine(timestamp=(chain.time() + 100))
-    # Successful redeem after cooldown expires
+    # Successful redeem after window begins
     env.sNOTE.redeem(env.sNOTE.balanceOf(testAccounts.ETHWhale) / 2, {"from": testAccounts.ETHWhale})
 
+    # Successful redeem again within window
+    env.sNOTE.redeem(env.sNOTE.balanceOf(testAccounts.ETHWhale) / 2, {"from": testAccounts.ETHWhale})
+
+    # Leave redemption window
+    chain.mine(timestamp=(chain.time() + 86400 * 3))
+
     # Once a redemption occurs the cool down is reset
-    with brownie.reverts("Cool Down Not Expired"):
+    with brownie.reverts("Not in Redemption Window"):
         env.sNOTE.redeem(env.sNOTE.balanceOf(testAccounts.ETHWhale), {"from": testAccounts.ETHWhale})
 
 def test_transfer():
@@ -223,7 +237,7 @@ def test_no_transfer_during_cooldown():
     env.sNOTE.mintFromNOTE(1e8, {"from": testAccounts.ETHWhale})
     env.sNOTE.startCoolDown({"from": testAccounts.ETHWhale})
 
-    with brownie.reverts("Cool Down Not Expired"):
+    with brownie.reverts("Account in Cool Down"):
         env.sNOTE.transfer(env.deployer, 1e8, {"from": testAccounts.ETHWhale})
 
     # Transfer works after cooldown is stopped

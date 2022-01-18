@@ -5,7 +5,6 @@ The goal of Staked NOTE is to align NOTE token holders with the long term succes
 - Reduced NOTE circulating supply
 - On Chain liquidity for trading NOTE
 - NOTE token holders can share in the success of the protocol
-- Long term nToken liquidity for Notional
 
 There are two primary components of the Staked NOTE design:
 
@@ -20,7 +19,11 @@ Staked NOTE (sNOTE) is minted to NOTE token holders in return for either NOTE or
 
 ### Redeeming sNOTE
 
-sNOTE is also used as a backstop during a [collateral shortfall event](#collateral-shortfall-event). When this is triggered via governance, 30% of underlying sNOTE BPT will be transferred to the [Treasury Manager](#treasury-manager) to be sold to recover the collateral shortfall. Therefore, to prevent sNOTE holders from front running a collateral shortfall event the sNOTE contract will enforce a cool down period before sNOTE withdraws can occur. Users who choose to initiate a cool down period will not have a claim on any additional BPT minted during their cool down period.
+sNOTE is also used as a backstop during a [collateral shortfall event](#collateral-shortfall-event). When this is triggered via governance, 30% of underlying sNOTE BPT will be transferred to the [Treasury Manager](#treasury-manager) to be sold to recover the collateral shortfall. Therefore, to prevent sNOTE holders from front running a collateral shortfall event the sNOTE contract will enforce a cool down period before sNOTE redemptions can occur. sNOTE holders can only redeem sNOTE to underlying BPT during their redemption window.
+
+### Collateral Shortfall Event
+
+In the event of a hack or account insolvencies, the Notional protocol may not have sufficient collateral to pay lenders their principal plus interest. In this event, NOTE governors will declare a collateral shortfall event and withdraw up to 30% of the sNOTE BPT tokens into NOTE and ETH. The NOTE portion will be sold or auctioned in order to generate collateral to repay lenders.
 
 ### sNOTE Yield Sources
 
@@ -30,15 +33,8 @@ sNOTE will earn yield from:
 - Governance may decide to incentivize sNOTE with additional NOTE tokens for some initial bootstrapping period.
 - Trading fees on the Balancer Pool. Since we anticipate that the sNOTE BPT pool will the the deepest liquidity for NOTE on chain, most NOTE DEX trading will likely come through this pool. sNOTE holders will be able to set the trading fee on the pool.
 
-### sNOTE Voting
+### sNOTE Voting Power
 
-sNOTE holders will also be able to vote in Notional governance just like NOTE holders. The voting power of an sNOTE token is based on the amount of underlying NOTE the Balancer pool tokens have a claim on. Relying on the spot claim of NOTE tokens in the Balancer Pool can be manipulated so the voting weight of a single sNOTE will be updated via a Chainlink Keeper.
+sNOTE holders will also be able to vote in Notional governance just like NOTE holders. The voting power of an sNOTE token is based on the amount of underlying NOTE the Balancer pool tokens have a claim on, using Balancer's provided price oracles.
 
-The Chainlink Keeper will periodically update:
-
-- Ensure that the current Balancer pool spot price is within some tolerance of the time weighted average spot price from the Balancer pool oracle. This is done to ensure that the voting weight is not being manipulated.
-    - If this check fails, then the keeper will retry until the check succeeds. If an adversary wants to manipulate the vote count they will have to continuously push up the NOTE balance in the Balancer Pool which will not be possible in the long run.
-- Query the Balancer pool to get the NOTE token balance per BPT token.
-- Calculate the total NOTE token balance claim of the sNOTE holdings.
-- Write the token balance claim to the sNOTE contract.
-- The sNOTE contract will update it's internal time weighted average NOTE balance. This will be used by the governance module to calculate the voting weight of a single sNOTE (`totalSupply / weightedAverageNOTEBalance`).
+Because the price oracle will be a lagged weighted average, the sNOTE voting power will likely be slightly higher or lower than the spot claim on Balancer pool tokens.

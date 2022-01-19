@@ -264,8 +264,10 @@ contract sNOTE is ERC20Upgradeable, ERC20VotesUpgradeable, BoringOwnable, UUPSUp
         return getPoolTokenShare(balanceOf(account));
     }
 
-    /// @notice Calculates voting power for a given amount of stNOTE
-    function getVotingPower(uint256 stNOTEAmount) external view returns (uint256) {
+    /// @notice Calculates voting power for a given amount of sNOTE
+    /// @param sNOTEAmount amount of sNOTE to calculate voting power for
+    /// @return corresponding NOTE voting power
+    function getVotingPower(uint256 sNOTEAmount) public view returns (uint256) {
         // Gets the BPT token price (in ETH)
         uint256 bptPrice = IPriceOracle(address(BALANCER_POOL_TOKEN)).getLatest(IPriceOracle.Variable.BPT_PRICE);
         // Gets the NOTE token price (in ETH)
@@ -286,7 +288,14 @@ contract sNOTE is ERC20Upgradeable, ERC20VotesUpgradeable, BoringOwnable, UUPSUp
         // we divide by 1e28 to get to 1e8
         noteAmount /= 1e28;
 
-        return (noteAmount * stNOTEAmount) / this.totalSupply();
+        return (noteAmount * sNOTEAmount) / totalSupply();
+    }
+
+    /// @notice Calculates voting power for a given account
+    /// @param account a given sNOTE holding account
+    /// @return corresponding NOTE voting power
+    function votingPowerOf(address account) external view returns (uint256) {
+        return getVotingPower(balanceOf(account));
     }
 
     /** Internal Methods **/

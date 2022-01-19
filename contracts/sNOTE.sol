@@ -8,8 +8,9 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin-upgradeable/contracts/token/ERC20/extensions/ERC20VotesUpgradeable.sol";
 import "@openzeppelin-upgradeable/contracts/token/ERC20/ERC20Upgradeable.sol";
-import {IVault, IAsset} from "interfaces/IVault.sol";
-import "interfaces/IWeightedPool.sol";
+import {IVault, IAsset} from "interfaces/balancer/IVault.sol";
+import "interfaces/balancer/IWeightedPool.sol";
+import "interfaces/balancer/IPriceOracle.sol";
 
 contract sNOTE is ERC20Upgradeable, ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, ReentrancyGuard {
     using SafeERC20 for ERC20;
@@ -22,6 +23,7 @@ contract sNOTE is ERC20Upgradeable, ERC20VotesUpgradeable, BoringOwnable, UUPSUp
 
     /// @notice Maximum shortfall withdraw of 30%
     uint256 public constant MAX_SHORTFALL_WITHDRAW = 30;
+    uint256 public constant BPT_TOKEN_PRECISION = 1e18;
 
     /// @notice Redemption window in seconds
     uint256 public constant REDEEM_WINDOW_SECONDS = 3 days;
@@ -262,9 +264,39 @@ contract sNOTE is ERC20Upgradeable, ERC20VotesUpgradeable, BoringOwnable, UUPSUp
         return getPoolTokenShare(balanceOf(account));
     }
 
-    // TODO: override getPastVotes
-    // Not clear how we should calculate the voting weight of sNOTE, may need to talk to chainlink
-    // to get a weighted NOTE claim on the underlying
+    /// @notice Calculates voting power for a given amount of sNOTE
+    /// @param sNOTEAmount amount of sNOTE to calculate voting power for
+    /// @return corresponding NOTE voting power
+    function getVotingPower(uint256 sNOTEAmount) public view returns (uint256) {
+        // Gets the BPT token price (in ETH)
+        uint256 bptPrice = IPriceOracle(address(BALANCER_POOL_TOKEN)).getLatest(IPriceOracle.Variable.BPT_PRICE);
+        // Gets the NOTE token price (in ETH)
+        uint256 notePrice = IPriceOracle(address(BALANCER_POOL_TOKEN)).getLatest(IPriceOracle.Variable.PAIR_PRICE);
+        
+        // Since both bptPrice and notePrice are denominated in ETH, we can use
+        // this formula to calculate noteAmount
+        // bptBalance * bptPrice = notePrice * noteAmount
+        // noteAmount = bptPrice/notePrice * bptBalance
+        uint256 priceRatio = bptPrice * 1e18 / notePrice;
+        uint256 bptBalance = BALANCER_POOL_TOKEN.balanceOf(address(this));
+
+        // Amount_note = Price_NOTE_per_BPT * BPT_supply * 80% (80/20 pool)
+        uint256 noteAmount = priceRatio * bptBalance * 80 / 100;
+
+        // Reduce precision down to 1e8 (NOTE token)
+        // priceRatio and bptBalance are both 1e18 (1e36 total)
+        // we divide by 1e28 to get to 1e8
+        noteAmount /= 1e28;
+
+        return (noteAmount * sNOTEAmount) / totalSupply();
+    }
+
+    /// @notice Calculates voting power for a given account
+    /// @param account a given sNOTE holding account
+    /// @return corresponding NOTE voting power
+    function votingPowerOf(address account) external view returns (uint256) {
+        return getVotingPower(balanceOf(account));
+    }
 
     /** Internal Methods **/
 

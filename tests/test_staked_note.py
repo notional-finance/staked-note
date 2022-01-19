@@ -117,7 +117,16 @@ def test_mint_from_bpt():
     assert env.balancerPool.balanceOf(testAccounts.ETHWhale) == 0
     assert env.sNOTE.balanceOf(testAccounts.ETHWhale) == bptBalance
 
-@pytest.mark.only
+def test_mint_from_note():
+    env = create_environment()
+    testAccounts = TestAccounts()
+    env.note.transfer(testAccounts.ETHWhale, 100e8, {"from": env.deployer})
+    env.note.approve(env.sNOTE.address, 2**256-1, {"from": testAccounts.ETHWhale})
+ 
+    env.sNOTE.mintFromNOTE(1e8, {"from": testAccounts.ETHWhale})
+    # This should be the same as adding 1e8 NOTE above
+    assert env.sNOTE.balanceOf(testAccounts.ETHWhale) == 1157335084531851455
+
 def test_pool_share_ratio():
     env = create_environment()
     testAccounts = TestAccounts()
@@ -148,29 +157,33 @@ def test_pool_share_ratio():
 
     assert env.sNOTE.totalSupply() == 0
     initialBPTBalance = env.balancerPool.balanceOf(env.sNOTE.address)
+
     txn1 = env.sNOTE.mintFromNOTE(100e8, {"from": testAccounts.ETHWhale})
-    bptFrom1 = txn1.events['Transfer'][2]['value']
+    bptFrom1 = txn1.events['Transfer'][1]['value']
     bptAdded = env.balancerPool.balanceOf(testAccounts.ETHWhale) / 2
 
     env.balancerPool.transfer(env.sNOTE.address, bptAdded, {"from": testAccounts.ETHWhale})
     txn2 = env.sNOTE.mintFromNOTE(100e8, {"from": testAccounts.DAIWhale})
-    bptFrom2 = txn2.events['Transfer'][2]['value']
+    bptFrom2 = txn2.events['Transfer'][1]['value']
 
     # Test that the pool share of the second minter does not accrue balances of those from the first
     poolTokenShare1 = env.sNOTE.poolTokenShareOf(testAccounts.ETHWhale)
     poolTokenShare2 = env.sNOTE.poolTokenShareOf(testAccounts.DAIWhale)
+
     assert pytest.approx(poolTokenShare1, abs=1) == bptFrom1 + bptAdded + initialBPTBalance
     assert pytest.approx(poolTokenShare2, abs=1) == bptFrom2
 
+    bptAdded2 = env.balancerPool.balanceOf(testAccounts.ETHWhale)
+
     # Test that additional tokens are split between the two holders proportionally
-    env.balancerPool.transfer(env.sNOTE.address, bptAdded, {"from": testAccounts.ETHWhale})
+    env.balancerPool.transfer(env.sNOTE.address, bptAdded2, {"from": testAccounts.ETHWhale})
     sNOTEBalance1 = env.sNOTE.balanceOf(testAccounts.ETHWhale)
     sNOTEBalance2 = env.sNOTE.balanceOf(testAccounts.DAIWhale)
     totalSupply = env.sNOTE.totalSupply()
     poolTokenShare3 = env.sNOTE.poolTokenShareOf(testAccounts.ETHWhale)
     poolTokenShare4 = env.sNOTE.poolTokenShareOf(testAccounts.DAIWhale)
-    assert pytest.approx(poolTokenShare3, abs=1000) == bptFrom1 + bptAdded + initialBPTBalance + (bptAdded * sNOTEBalance1 / totalSupply)
-    assert pytest.approx(poolTokenShare4, abs=1000) == bptFrom2 + (bptAdded * sNOTEBalance2 / totalSupply)
+    assert pytest.approx(poolTokenShare3, abs=1000) == bptFrom1 + bptAdded + initialBPTBalance + (bptAdded2 * sNOTEBalance1 / totalSupply)
+    assert pytest.approx(poolTokenShare4, abs=1000) == bptFrom2 + (bptAdded2 * sNOTEBalance2 / totalSupply)
 
 def test_mint_from_eth():
     env = create_environment()
@@ -261,3 +274,64 @@ def test_transfer_with_delegates():
 
     assert env.sNOTE.getVotes(testAccounts.ETHWhale) == env.sNOTE.balanceOf(testAccounts.ETHWhale)
     assert env.sNOTE.getVotes(env.deployer) == 1e8
+
+def test_get_voting_power_single_staker_price_increasing():
+    env = create_environment()
+    testAccounts = TestAccounts()
+    env.weth.approve(env.balancerVault.address, 2 ** 255, {"from": testAccounts.WETHWhale})
+    env.note.approve(env.sNOTEProxy.address, 2 ** 255, {"from": testAccounts.WETHWhale})
+    env.note.approve(env.balancerVault.address, 2 ** 255, {"from": testAccounts.WETHWhale})
+    
+    env.buyNOTE(1e8, testAccounts.WETHWhale)
+    env.sNOTE.mintFromNOTE(env.note.balanceOf(testAccounts.WETHWhale), {"from": testAccounts.WETHWhale})
+    assert env.sNOTE.balanceOf(testAccounts.WETHWhale) == env.sNOTE.totalSupply()
+    noteBalance = env.balancerVault.getPoolTokens(env.poolId)[1][1]
+    votingPower = env.sNOTE.getVotingPower(env.sNOTE.totalSupply())
+    assert votingPower < noteBalance and votingPower == 9980502186
+
+    env.buyNOTE(5e8, testAccounts.WETHWhale)
+    env.sNOTE.mintFromNOTE(env.note.balanceOf(testAccounts.WETHWhale), {"from": testAccounts.WETHWhale})
+    assert env.sNOTE.balanceOf(testAccounts.WETHWhale) == env.sNOTE.totalSupply()
+    noteBalance = env.balancerVault.getPoolTokens(env.poolId)[1][1]
+    votingPower = env.sNOTE.getVotingPower(env.sNOTE.totalSupply())
+    assert votingPower < noteBalance and votingPower == 9896963994
+
+def test_get_voting_power_single_staker_price_decreasing_fast():
+    env = create_environment()
+    testAccounts = TestAccounts()
+    env.weth.transfer(testAccounts.NOTEWhale.address, 100e18, {"from": testAccounts.WETHWhale})
+    env.note.approve(env.balancerVault.address, 2 ** 255, {"from": testAccounts.NOTEWhale})
+    env.note.approve(env.sNOTEProxy.address, 2 ** 255, {"from": testAccounts.NOTEWhale})
+    env.note.approve(env.balancerVault.address, 2 ** 255, {"from": testAccounts.WETHWhale})
+
+    env.sNOTE.mintFromNOTE(10e8, {"from": testAccounts.NOTEWhale})
+    assert env.sNOTE.balanceOf(testAccounts.NOTEWhale) == env.sNOTE.totalSupply()
+
+    env.sellNOTE(5e8, testAccounts.NOTEWhale)
+
+    noteBalance = env.balancerVault.getPoolTokens(env.poolId)[1][1]
+    votingPower = env.sNOTE.getVotingPower(env.sNOTE.totalSupply())
+    assert votingPower < noteBalance and votingPower == 11000894118
+
+def test_get_voting_power_single_staker_price_decreasing_slow():
+    env = create_environment()
+    testAccounts = TestAccounts()
+    env.weth.transfer(testAccounts.NOTEWhale.address, 100e18, {"from": testAccounts.WETHWhale})
+    env.note.approve(env.balancerVault.address, 2 ** 255, {"from": testAccounts.NOTEWhale})
+    env.note.approve(env.sNOTEProxy.address, 2 ** 255, {"from": testAccounts.NOTEWhale})
+    env.note.approve(env.balancerVault.address, 2 ** 255, {"from": testAccounts.WETHWhale})
+
+    env.sNOTE.mintFromNOTE(10e8, {"from": testAccounts.NOTEWhale})
+    assert env.sNOTE.balanceOf(testAccounts.NOTEWhale) == env.sNOTE.totalSupply()
+
+    env.sellNOTE(1e8, testAccounts.NOTEWhale)
+    env.sellNOTE(1e8, testAccounts.NOTEWhale)
+    env.sellNOTE(1e8, testAccounts.NOTEWhale)
+    env.sellNOTE(1e8, testAccounts.NOTEWhale)
+    env.sellNOTE(1e8, testAccounts.NOTEWhale)
+
+    noteBalance = env.balancerVault.getPoolTokens(env.poolId)[1][1]
+    votingPower = env.sNOTE.getVotingPower(env.sNOTE.totalSupply())
+    assert votingPower < noteBalance and votingPower == 11399580460
+
+

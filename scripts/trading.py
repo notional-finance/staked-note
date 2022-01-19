@@ -84,11 +84,15 @@ class Environment:
         self.config = config
         self.tokens = {}
         self.tokens["ETH"] = self.loadTokenProxy(self.config, "ETH")
-        self.tokens["DAI"] = self.loadTokenProxy(self.config, "DAI")        
+        self.tokens["DAI"] = self.loadTokenProxy(self.config, "DAI")
+        self.deployer = accounts.at("0x2a956Fe94ff89D8992107c8eD4805c30ff1106ef", force=True)   
     def loadTokenProxy(self, config, token):
         with open("./abi/ERC20.json", "r") as f:
             abi = json.load(f)
         return Contract.from_abi(token, config["tokens"][token], abi)  
+
+def create_environment():
+    return Environment(EnvironmentConfig["mainnet"])
 
 def main():
     networkName = network.show_active()

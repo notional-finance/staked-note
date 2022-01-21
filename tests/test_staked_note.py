@@ -72,7 +72,7 @@ def test_extract_tokens_for_shortfall_cap():
     bptBefore = env.balancerPool.balanceOf(env.sNOTE.address)
     env.sNOTE.extractTokensForCollateralShortfall(bptBefore, {"from": env.deployer})
     bptAfter = env.balancerPool.balanceOf(env.sNOTE.address)
-    assert pytest.approx(bptAfter / bptBefore, rel=1e-9) == 0.7
+    assert pytest.approx(bptAfter / bptBefore, rel=1e-9) == 0.5
 
 def test_set_swap_fee_percentage():
     env = create_environment()

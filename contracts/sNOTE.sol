@@ -21,8 +21,8 @@ contract sNOTE is ERC20Upgradeable, ERC20VotesUpgradeable, BoringOwnable, UUPSUp
     ERC20 public immutable WETH;
     bytes32 public immutable NOTE_ETH_POOL_ID;
 
-    /// @notice Maximum shortfall withdraw of 30%
-    uint256 public constant MAX_SHORTFALL_WITHDRAW = 30;
+    /// @notice Maximum shortfall withdraw of 50%
+    uint256 public constant MAX_SHORTFALL_WITHDRAW = 50;
     uint256 public constant BPT_TOKEN_PRECISION = 1e18;
 
     /// @notice Redemption window in seconds
@@ -96,7 +96,7 @@ contract sNOTE is ERC20Upgradeable, ERC20VotesUpgradeable, BoringOwnable, UUPSUp
         emit GlobalCoolDownUpdated(_coolDownTimeInSeconds);
     }
 
-    /// @notice Allows the DAO to extract up to 30% of the BPT tokens during a collateral shortfall event
+    /// @notice Allows the DAO to extract up to 50% of the BPT tokens during a collateral shortfall event
     function extractTokensForCollateralShortfall(uint256 requestedWithdraw) external nonReentrant onlyOwner {
         uint256 bptBalance = BALANCER_POOL_TOKEN.balanceOf(address(this));
         uint256 maxBPTWithdraw = (bptBalance * MAX_SHORTFALL_WITHDRAW) / 100;
@@ -135,11 +135,12 @@ contract sNOTE is ERC20Upgradeable, ERC20VotesUpgradeable, BoringOwnable, UUPSUp
 
     /** User Methods **/
 
-    /// @notice Mints sNOTE from the underlying BPT token. Will receive 1 sNOTE per BPT.
+    /// @notice Mints sNOTE from the underlying BPT token.
     /// @param bptAmount is the amount of BPT to transfer from the msg.sender.
     function mintFromBPT(uint256 bptAmount) external nonReentrant {
-        _mint(msg.sender, bptAmount);
+        // _mint logic requires that tokens are transferred first
         BALANCER_POOL_TOKEN.safeTransferFrom(msg.sender, address(this), bptAmount);
+        _mint(msg.sender, bptAmount);
     }
 
     /// @notice Mints sNOTE from some amount of NOTE tokens.
@@ -338,6 +339,9 @@ contract sNOTE is ERC20Upgradeable, ERC20VotesUpgradeable, BoringOwnable, UUPSUp
         // (sNOTEToMint * bptBalance) - (sNOTEToMint * bptAmount) = totalSupply * bptAmount
         // sNOTEToMint * (bptBalance - bptAmount) = totalSupply * bptAmount
         // sNOTEToMint = (totalSupply * bptAmount) / (bptBalance - bptAmount)
+
+        // NOTE: at this point the BPT has already been transferred into the sNOTE contract, so this
+        // bptBalance amount includes bptAmount.
         uint256 bptBalance = BALANCER_POOL_TOKEN.balanceOf(address(this));
         uint256 _totalSupply = totalSupply();
         uint256 sNOTEToMint;

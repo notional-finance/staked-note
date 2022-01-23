@@ -10,11 +10,10 @@ import {IVault, IAsset} from "interfaces/balancer/IVault.sol";
 import {NotionalTreasuryAction} from "interfaces/notional/NotionalTreasuryAction.sol";
 import {WETH9} from "interfaces/WETH9.sol";
 
-contract TreasuryManager is BoringOwnable, Initializable, UUPSUpgradeable {
+contract TreasuryManager is EIP1271Wallet, BoringOwnable, Initializable, UUPSUpgradeable {
     using SafeERC20 for IERC20;
 
     NotionalTreasuryAction public immutable NOTIONAL;
-    WETH9 public immutable WETH;
     IERC20 public immutable NOTE;
     IVault public immutable BALANCER_VAULT;
     address public immutable sNOTE;
@@ -23,6 +22,7 @@ contract TreasuryManager is BoringOwnable, Initializable, UUPSUpgradeable {
 
     address public manager;
     uint32 public refundGasPrice;
+    uint256 public notePurcahseLimit;
 
     event ManagementTransferred(address prevManager, address newManager);
     event RefundGasPriceSet(
@@ -31,6 +31,9 @@ contract TreasuryManager is BoringOwnable, Initializable, UUPSUpgradeable {
     );
     event AssetsHarvested(uint16[] currencies, uint256[] amounts);
     event COMPHarvested(address[] ctokens, uint256 amount);
+    event PriceOracleUpdated(address tokenAddress, address oracleAddress);
+    event SlippageLimitUpdated(address tokenAddress, uint256 slippageLimit);
+    event NOTEPurcahseLimitUpdated(uint256 purcahseLimit);
 
     /// @dev Restricted methods for the treasury manager
     modifier onlyManager() {
@@ -46,11 +49,10 @@ contract TreasuryManager is BoringOwnable, Initializable, UUPSUpgradeable {
         IERC20 _note,
         address _sNOTE,
         address _assetProxy
-    ) initializer {
+    ) EIP1271Wallet(_weth) initializer {
         NOTIONAL = NotionalTreasuryAction(_notional);
         sNOTE = _sNOTE;
         NOTE = _note;
-        WETH = _weth;
         BALANCER_VAULT = _balancerVault;
         NOTE_ETH_POOL_ID = _noteETHPoolId;
         ASSET_PROXY = _assetProxy;
@@ -65,6 +67,21 @@ contract TreasuryManager is BoringOwnable, Initializable, UUPSUpgradeable {
 
     function approveToken(address token, uint256 amount) external onlyOwner {
         IERC20(token).approve(ASSET_PROXY, amount);
+    }
+
+    function setPriceOracle(address tokenAddress, address oracleAddress) external onlyOwner {
+        priceOracles[tokenAddress] = oracleAddress;
+        emit PriceOracleUpdated(tokenAddress, oracleAddress);
+    }
+
+    function setSlippageLimit(address tokenAddress, uint256 slippageLimit) external onlyOwner {
+        slippageLimits[tokenAddress] = slippageLimit;
+        emit SlippageLimitUpdated(tokenAddress, slippageLimit);
+    }
+
+    function setNotePurcahseLimit(uint256 purchaseLimit) external onlyOwner {
+        notePurcahseLimit = purchaseLimit;
+        emit NOTEPurcahseLimitUpdated(purchaseLimit);
     }
 
     function withdraw(address token, uint256 amount) external onlyOwner {

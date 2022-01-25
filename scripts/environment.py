@@ -310,3 +310,8 @@ def main():
     env.treasuryManager.setSlippageLimit(env.usdc.address, 0.8e8, {"from": env.deployer})
     env.treasuryManager.setSlippageLimit(env.wbtc.address, 0.8e8, {"from": env.deployer})
     #env.treasuryManager.setPriceOracle(env.comp.address, )
+    env.weth.approve(env.balancerVault.address, 2 ** 255, {"from": testAccounts.WETHWhale})
+    env.note.approve(env.sNOTEProxy.address, 2 ** 255, {"from": testAccounts.WETHWhale})
+    env.note.approve(env.balancerVault.address, 2 ** 255, {"from": testAccounts.WETHWhale})
+    
+    env.buyNOTE(1e8, testAccounts.WETHWhale)

@@ -134,4 +134,4 @@ def test_set_note_purchase_limit_non_owner():
     testAccounts = TestAccounts()
     env = create_environment()
     with brownie.reverts():
-        env.treasuryManager.setNOTEPurcahseLimit(0.2e8, {"from": testAccounts.WETHWhale})
+        env.treasuryManager.setNOTEPurchaseLimit(0.2e8, {"from": testAccounts.WETHWhale})

@@ -20,6 +20,9 @@ EnvironmentConfig = {
     "NOTE": "0xCFEAead4947f0705A14ec42aC3D44129E1Ef3eD5",
     "WETH": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
     "DAI": "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+    "USDC": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "WBTC": "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
+    "COMP": "0xc00e94cb662c3520282e6f5717214004a7f26888",
     "Notional": "0x1344a36a1b56144c3bc62e7757377d288fde0369",
     "ERC20AssetProxy": "0x95E6F48254609A6ee006F7D493c8e5fB97094ceF",
     "ExchangeV3": "0x61935cbdd02287b511119ddb11aeb42f1593b7ef",
@@ -132,6 +135,8 @@ class Environment:
         self.note = self.loadNOTE(self.config["NOTE"])
         self.dai = self.loadERC20Token("DAI")
         self.weth = self.load_WETH(self.config["WETH"])
+        self.usdc = self.loadERC20Token("USDC")
+        self.wbtc = self.loadERC20Token("WBTC")
         if self.config['sNOTEPoolAddress']:
             self.balancerPool = self.loadBalancerPool(self.config['sNOTEPoolAddress'])
             self.poolId = self.config['sNOTEPoolId']
@@ -290,9 +295,6 @@ class Environment:
             account,
             False
         ], 0, chain.time() + 20000, { "from": account })
-    
-    def getBPTOraclePrice(self):
-        return self.BPTPriceOracle.getLatest(1)
 
 def create_environment():
     testAccounts = TestAccounts()
@@ -301,3 +303,10 @@ def create_environment():
 def main():
     env = create_environment()
     testAccounts = TestAccounts()
+    env.treasuryManager.setPriceOracle(env.dai.address, '0x6085b0a8f4c7ffa2e8ca578037792d6535d1e29b', {"from": env.deployer})
+    env.treasuryManager.setPriceOracle(env.usdc.address, '0x68225f47813af66f186b3714ffe6a91850bc76b4', {"from": env.deployer})
+    env.treasuryManager.setPriceOracle(env.wbtc.address, '0x10aae34011c256a9e63ab5ac50154c2539c0f51d', {"from": env.deployer})
+    env.treasuryManager.setSlippageLimit(env.dai.address, 0.8e8, {"from": env.deployer})
+    env.treasuryManager.setSlippageLimit(env.usdc.address, 0.8e8, {"from": env.deployer})
+    env.treasuryManager.setSlippageLimit(env.wbtc.address, 0.8e8, {"from": env.deployer})
+    #env.treasuryManager.setPriceOracle(env.comp.address, )

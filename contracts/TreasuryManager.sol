@@ -31,8 +31,6 @@ contract TreasuryManager is EIP1271Wallet, BoringOwnable, Initializable, UUPSUpg
     );
     event AssetsHarvested(uint16[] currencies, uint256[] amounts);
     event COMPHarvested(address[] ctokens, uint256 amount);
-    event PriceOracleUpdated(address tokenAddress, address oracleAddress);
-    event SlippageLimitUpdated(address tokenAddress, uint256 slippageLimit);
     event NOTEPurcahseLimitUpdated(uint256 purcahseLimit);
 
     /// @dev Restricted methods for the treasury manager
@@ -70,16 +68,14 @@ contract TreasuryManager is EIP1271Wallet, BoringOwnable, Initializable, UUPSUpg
     }
 
     function setPriceOracle(address tokenAddress, address oracleAddress) external onlyOwner {
-        priceOracles[tokenAddress] = oracleAddress;
-        emit PriceOracleUpdated(tokenAddress, oracleAddress);
+        _setPriceOracle(tokenAddress, oracleAddress);
     }
 
     function setSlippageLimit(address tokenAddress, uint256 slippageLimit) external onlyOwner {
-        slippageLimits[tokenAddress] = slippageLimit;
-        emit SlippageLimitUpdated(tokenAddress, slippageLimit);
+        _setSlippageLimit(tokenAddress, slippageLimit);
     }
 
-    function setNotePurcahseLimit(uint256 purchaseLimit) external onlyOwner {
+    function setNOTEPurcahseLimit(uint256 purchaseLimit) external onlyOwner {
         notePurcahseLimit = purchaseLimit;
         emit NOTEPurcahseLimitUpdated(purchaseLimit);
     }
@@ -156,7 +152,7 @@ contract TreasuryManager is EIP1271Wallet, BoringOwnable, Initializable, UUPSUpg
         view
         returns (bytes4)
     {
-        return EIP1271Wallet.isValidSignature(data, signature, manager);
+        return _isValidSignature(data, signature, manager);
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}

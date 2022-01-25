@@ -118,20 +118,20 @@ def test_trading_DAI_slippage_limit_not_defined():
             { "from": testAccounts.WETHWhale }
         )
 
-@pytest.mark.skip
 def test_set_price_oracle_non_owner():
+    testAccounts = TestAccounts()
     env = create_environment()
     with brownie.reverts():
-        env.treasuryManager.setPriceOracle(env.dai.address, '0x6085b0a8f4c7ffa2e8ca578037792d6535d1e29b', {"from": "0x2a956Fe94ff89D8992107c8eD4805c30ff1106ef"})
+        env.treasuryManager.setPriceOracle(env.dai.address, '0x6085b0a8f4c7ffa2e8ca578037792d6535d1e29b', {"from": testAccounts.WETHWhale})
 
-@pytest.mark.skip
 def test_set_slippage_limit_non_owner():
+    testAccounts = TestAccounts()
     env = create_environment()
     with brownie.reverts():
-        env.treasuryManager.setSlippageLimit(env.dai.address, 0.9e8, {"from": '0x2a956Fe94ff89D8992107c8eD4805c30ff1106ef'})
+        env.treasuryManager.setSlippageLimit(env.dai.address, 0.9e8, {"from": testAccounts.WETHWhale})
 
-@pytest.mark.skip
 def test_set_note_purchase_limit_non_owner():
+    testAccounts = TestAccounts()
     env = create_environment()
     with brownie.reverts():
-        env.treasuryManager.setNOTEPurcahseLimit(0.2e8, {"from": '0x2a956Fe94ff89D8992107c8eD4805c30ff1106ef'})
+        env.treasuryManager.setNOTEPurcahseLimit(0.2e8, {"from": testAccounts.WETHWhale})

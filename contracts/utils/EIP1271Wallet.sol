@@ -158,7 +158,7 @@ contract EIP1271Wallet {
         return (takerAmount * takerDecimals) / makerAmount;
     }
 
-    function _isValidOrder(bytes memory order) internal view returns (bool) {
+    function _isValidOrder(bytes memory order) private view returns (bool) {
         (
             address makerToken,
             address takerToken,

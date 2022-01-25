@@ -147,7 +147,7 @@ contract TreasuryManager is
         _investWETHToBuyNOTE(wethAmount);
     }
 
-    function _getNOTESpotPrice() private view returns (uint256) {
+    function _getNOTESpotPrice() public view returns (uint256) {
         // prettier-ignore
         (
             /* address[] memory tokens */,
@@ -155,6 +155,8 @@ contract TreasuryManager is
             /* uint256 lastChangeBlock */
         ) = BALANCER_VAULT.getPoolTokens(NOTE_ETH_POOL_ID);
 
+        // balances[0] = WETH
+        // balances[1] = NOTE
         // increase NOTE precision to 1e18
         uint256 noteBal = balances[1] * 1e10;
 
@@ -177,20 +179,16 @@ contract TreasuryManager is
         maxAmountsIn[0] = wethAmount;
         maxAmountsIn[1] = 0;
 
-        // Pair price is denominated in ETH
+        IPriceOracle.OracleAverageQuery[]
+            memory queries = new IPriceOracle.OracleAverageQuery[](1);
+
+        queries[0].variable = IPriceOracle.Variable.PAIR_PRICE;
+        queries[0].secs = 3600; // last hour
+        queries[0].ago = 0; // now
+
+        // Gets the balancer time weighted average price denominated in ETH
         uint256 noteOraclePrice = IPriceOracle(address(BALANCER_POOL_TOKEN))
-            .getLatest(IPriceOracle.Variable.PAIR_PRICE);
-
-        // Calculate max allowable deviation from the oracle price
-        uint256 maxDeviation = (noteOraclePrice * MAX_ORACLE_DEVIATION) / 100;
-        uint256 noteSpotPriceBefore = _getNOTESpotPrice();
-
-        // Spot price must be within the allowable range
-        require(
-            noteSpotPriceBefore <= (noteOraclePrice + maxDeviation) &&
-                noteSpotPriceBefore >= (noteOraclePrice - maxDeviation),
-            "spot price is outside of the allowable range"
-        );
+            .getTimeWeightedAverage(queries)[0];
 
         BALANCER_VAULT.joinPool(
             NOTE_ETH_POOL_ID,
@@ -208,17 +206,14 @@ contract TreasuryManager is
             )
         );
 
-        uint256 noteSpotPriceAfter = _getNOTESpotPrice();
+        uint256 noteSpotPrice = _getNOTESpotPrice();
 
         // Calculate the max spot price based on the purchase limit
-        uint256 maxPrice = noteSpotPriceBefore +
-            (noteSpotPriceBefore * notePurchaseLimit) /
+        uint256 maxPrice = noteOraclePrice +
+            (noteOraclePrice * notePurchaseLimit) /
             NOTE_PURCHASE_LIMIT_PRECISION;
 
-        require(
-            noteSpotPriceAfter <= maxPrice,
-            "price impact is too high"
-        );
+        require(noteSpotPrice <= maxPrice, "price impact is too high");
     }
 
     function isValidSignature(bytes calldata data, bytes calldata signature)

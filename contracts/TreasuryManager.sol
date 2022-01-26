@@ -133,7 +133,7 @@ contract TreasuryManager is
         external
         onlyManager
     {
-        uint256 amountTransferred = NOTIONAL.claimCOMP(ctokens);
+        uint256 amountTransferred = NOTIONAL.claimCOMPAndTransfer(ctokens);
         emit COMPHarvested(ctokens, amountTransferred);
     }
 

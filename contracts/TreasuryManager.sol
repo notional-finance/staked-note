@@ -20,8 +20,6 @@ contract TreasuryManager is
 {
     using SafeERC20 for IERC20;
 
-    /// @notice 50% max oracle deviation
-    uint256 internal constant MAX_ORACLE_DEVIATION = 50;
     /// @notice precision used to limit the amount of NOTE price impact (1e8 = 100%)
     uint256 internal constant NOTE_PURCHASE_LIMIT_PRECISION = 1e8;
 

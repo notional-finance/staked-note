@@ -2,7 +2,17 @@ import json
 import eth_abi
 import eth_keys
 import time
-from brownie import ZERO_ADDRESS, accounts, Contract, interface, sNOTE, nProxy, EmptyProxy, TreasuryManager
+from brownie import (
+    ZERO_ADDRESS, 
+    accounts, 
+    Contract, 
+    interface, 
+    sNOTE, 
+    nProxy, 
+    EmptyProxy, 
+    TreasuryManager, 
+    ChainlinkAdapter
+)
 from brownie.network.state import Chain
 from brownie.convert.datatypes import Wei
 from eth_account._utils.signing import sign_message_hash
@@ -23,6 +33,8 @@ EnvironmentConfig = {
     "USDC": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
     "WBTC": "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
     "COMP": "0xc00e94cb662c3520282e6f5717214004a7f26888",
+    "COMP_USD_Oracle": "0xdbd020caef83efd542f4de03e3cf0c28a4428bd5",
+    "ETH_USD_Oracle": "0x5f4ec3df9cbd43714fe2740f5e3616155c5b8419",
     "Notional": "0x1344a36a1b56144c3bc62e7757377d288fde0369",
     "ERC20AssetProxy": "0x95E6F48254609A6ee006F7D493c8e5fB97094ceF",
     "ExchangeV3": "0x61935cbdd02287b511119ddb11aeb42f1593b7ef",
@@ -137,6 +149,7 @@ class Environment:
         self.weth = self.load_WETH(self.config["WETH"])
         self.usdc = self.loadERC20Token("USDC")
         self.wbtc = self.loadERC20Token("WBTC")
+        self.comp = self.loadERC20Token("COMP")
         if self.config['sNOTEPoolAddress']:
             self.balancerPool = self.loadBalancerPool(self.config['sNOTEPoolAddress'])
             self.poolId = self.config['sNOTEPoolId']
@@ -150,6 +163,7 @@ class Environment:
         self.DAIToken = self.loadERC20Token("DAI")
         self.exchangeV3 = self.loadExchangeV3(self.config['ExchangeV3'])
         self.assetProxy = interface.ERC20Proxy(self.config["ExchangeV3"])
+        self.COMPOracle = self.deployCOMPOracle()
 
     def loadExchangeV3(self, address):
         with open("./abi/0x/ExchangeV3.json", "r") as f:
@@ -266,6 +280,14 @@ class Environment:
         proxy = nProxy.deploy(treasuryManager.address, initData, {"from": self.deployer})
         return Contract.from_abi("TreasuryManagerProxy", proxy.address, TreasuryManager.abi)
 
+    def deployCOMPOracle(self):
+        return ChainlinkAdapter.deploy(
+            self.config["COMP_USD_Oracle"],
+            self.config["ETH_USD_Oracle"],
+            "COMP/ETH",
+            {"from": self.deployer}
+        )
+
     def buyNOTE(self, amount, account):
         self.balancerVault.swap([
             self.poolId,
@@ -306,10 +328,11 @@ def main():
     env.treasuryManager.setPriceOracle(env.dai.address, '0x6085b0a8f4c7ffa2e8ca578037792d6535d1e29b', {"from": env.deployer})
     env.treasuryManager.setPriceOracle(env.usdc.address, '0x68225f47813af66f186b3714ffe6a91850bc76b4', {"from": env.deployer})
     env.treasuryManager.setPriceOracle(env.wbtc.address, '0x10aae34011c256a9e63ab5ac50154c2539c0f51d', {"from": env.deployer})
+    env.treasuryManager.setPriceOracle(env.comp.address, env.COMPOracle.address, {"from": env.deployer})
     env.treasuryManager.setSlippageLimit(env.dai.address, 0.8e8, {"from": env.deployer})
     env.treasuryManager.setSlippageLimit(env.usdc.address, 0.8e8, {"from": env.deployer})
     env.treasuryManager.setSlippageLimit(env.wbtc.address, 0.8e8, {"from": env.deployer})
-    #env.treasuryManager.setPriceOracle(env.comp.address, )
+    env.treasuryManager.setSlippageLimit(env.comp.address, 0.8e8, {"from": env.deployer})
     env.weth.approve(env.balancerVault.address, 2 ** 255, {"from": testAccounts.WETHWhale})
     env.note.approve(env.sNOTEProxy.address, 2 ** 255, {"from": testAccounts.WETHWhale})
     env.note.approve(env.balancerVault.address, 2 ** 255, {"from": testAccounts.WETHWhale})

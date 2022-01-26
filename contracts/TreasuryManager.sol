@@ -36,10 +36,6 @@ contract TreasuryManager is
     uint256 public notePurchaseLimit;
 
     event ManagementTransferred(address prevManager, address newManager);
-    event RefundGasPriceSet(
-        uint32 prevRefundGasPrice,
-        uint32 newRefundGasPrice
-    );
     event AssetsHarvested(uint16[] currencies, uint256[] amounts);
     event COMPHarvested(address[] ctokens, uint256 amount);
     event NOTEPurchaseLimitUpdated(uint256 purchaseLimit);

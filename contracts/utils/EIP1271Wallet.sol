@@ -8,6 +8,8 @@ import {WETH9} from "interfaces/WETH9.sol";
 import {AggregatorV2V3Interface} from "interfaces/chainlink/AggregatorV2V3Interface.sol";
 
 contract EIP1271Wallet {
+    // 0x order encoding is implemented in _encodeEIP1271OrderWithHash
+    // https://github.com/0xProject/0x-monorepo/blob/development/contracts/exchange/contracts/src/MixinSignatureValidator.sol
     uint256 internal constant ORDER_HASH_OFFSET = 36;
     uint256 internal constant FEE_RECIPIENT_OFFSET = 144;
     uint256 internal constant MAKER_AMOUNT_OFFSET = 196;
@@ -15,6 +17,7 @@ contract EIP1271Wallet {
     uint256 internal constant MAKER_TOKEN_OFFSET = 564;
     uint256 internal constant TAKER_TOKEN_OFFSET = 660;
     uint256 internal constant SLIPPAGE_LIMIT_PRECISION = 1e8;
+    uint256 internal constant ETH_PRECISION = 1e18;
 
     bytes4 internal constant EIP1271_MAGIC_NUM = 0x20c13b0b;
     bytes4 internal constant EIP1271_INVALID_SIG = 0xffffffff;
@@ -98,11 +101,11 @@ contract EIP1271Wallet {
             encoded.length >= TAKER_TOKEN_OFFSET + 32,
             "encoded: invalid length"
         );
-        makerToken = _toAddress(encoded, MAKER_TOKEN_OFFSET);
-        takerToken = _toAddress(encoded, TAKER_TOKEN_OFFSET);
         feeRecipient = _toAddress(encoded, FEE_RECIPIENT_OFFSET);
         makerAmount = _toUint256(encoded, MAKER_AMOUNT_OFFSET);
         takerAmount = _toUint256(encoded, TAKER_AMOUNT_OFFSET);
+        makerToken = _toAddress(encoded, MAKER_TOKEN_OFFSET);
+        takerToken = _toAddress(encoded, TAKER_TOKEN_OFFSET);
     }
 
     /// @notice extracts the order hash from the encoded 0x order object
@@ -140,25 +143,8 @@ contract EIP1271Wallet {
         emit SlippageLimitUpdated(tokenAddress, slippageLimit);
     }
 
-    /// @notice gets the maker price normalized by the taker token decimals
-    /// makerAmount * makerPrice = takerAmount
-    function _getNormalizedMakerPrice(
-        uint256 makerDecimals,
-        uint256 makerAmount,
-        uint256 takerDecimals,
-        uint256 takerAmount
-    ) private view returns (uint256) {
-        if (makerDecimals > takerDecimals) {
-            // Remove precision if maker token has more decimal points
-            makerAmount /= makerDecimals / takerDecimals;
-        } else if (makerDecimals < takerDecimals) {
-            // Increase precision if maker token has fewer decimal points
-            makerAmount *= takerDecimals / makerDecimals;
-        }
-        return (takerAmount * takerDecimals) / makerAmount;
-    }
-
-    function _isValidOrder(bytes memory order) private view returns (bool) {
+    /// @notice make sure the order satisfies some pre-defined constraints
+    function _validateOrder(bytes memory order) private view {
         (
             address makerToken,
             address takerToken,
@@ -168,38 +154,37 @@ contract EIP1271Wallet {
         ) = _extractOrderInfo(order);
 
         // No fee recipient allowed
-        if (feeRecipient != address(0)) return false;
+        require(feeRecipient == address(0), "no fee recipient allowed");
 
         // MakerToken should never be WETH
-        if (makerToken == address(WETH)) return false;
+        require(makerToken != address(WETH), "maker token must not be WETH");
 
         // TakerToken (proceeds) should always be WETH
-        if (takerToken != address(WETH)) return false;
+        require(takerToken == address(WETH), "taker token must be WETH");
 
         address priceOracle = priceOracles[makerToken];
 
         // Price oracle not defined
-        if (priceOracle == address(0)) return false;
+        require(priceOracle != address(0), "price oracle not defined");
 
         uint256 slippageLimit = slippageLimits[makerToken];
 
         // Slippage limit not defined
-        if (slippageLimit == 0) return false;
+        require(slippageLimit != 0, "slippage limit not defined");
 
         uint256 oraclePrice = _toUint(
             AggregatorV2V3Interface(priceOracle).latestAnswer()
         );
+
         uint256 priceFloor = (oraclePrice * slippageLimit) /
             SLIPPAGE_LIMIT_PRECISION;
 
-        uint256 price = _getNormalizedMakerPrice(
-            10**ERC20(makerToken).decimals(),
-            makerAmount,
-            10**AggregatorV2V3Interface(priceOracle).decimals(),
-            takerAmount
-        );
+        uint256 makerDecimals = 10**ERC20(makerToken).decimals();
 
-        return price >= priceFloor;
+        // makerPrice = takerAmount / makerAmount
+        uint256 makerPrice = (takerAmount * makerDecimals) / makerAmount;
+
+        require(makerPrice >= priceFloor, "slippage is too high");
     }
 
     /**
@@ -210,7 +195,7 @@ contract EIP1271Wallet {
         bytes calldata signature,
         address signer
     ) internal view returns (bytes4) {
-        if (!_isValidOrder(data)) return EIP1271_INVALID_SIG;
+        _validateOrder(data);
 
         (address recovered, ECDSA.RecoverError error) = ECDSA.tryRecover(
             keccak256(
@@ -221,9 +206,11 @@ contract EIP1271Wallet {
             ),
             signature
         );
+
         if (error == ECDSA.RecoverError.NoError && recovered == signer) {
             return EIP1271_MAGIC_NUM;
         }
+
         return EIP1271_INVALID_SIG;
     }
 }

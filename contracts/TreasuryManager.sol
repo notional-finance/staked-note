@@ -33,6 +33,8 @@ contract TreasuryManager is
 
     address public manager;
     uint32 public refundGasPrice;
+    /// @notice This limit determines the maximum price impact (% increase from current oracle price)
+    /// from joining the BPT pool with WETH
     uint256 public notePurchaseLimit;
 
     event ManagementTransferred(address prevManager, address newManager);

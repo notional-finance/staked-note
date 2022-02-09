@@ -27,17 +27,11 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
     /// @notice Redemption window in seconds
     uint256 public constant REDEEM_WINDOW_SECONDS = 3 days;
 
-    /// @notice Tracks an account's redemption window
-    struct AccountCoolDown {
-        uint32 redeemWindowBegin;
-        uint32 redeemWindowEnd;
-    }
-
     /// @notice Number of seconds that need to pass before sNOTE can be redeemed
     uint32 public coolDownTimeInSeconds;
 
-    /// @notice Mapping between sNOTE holders and their current cooldown status
-    mapping(address => AccountCoolDown) public accountCoolDown;
+    /// @notice Mapping between sNOTE holders and their cool down status
+    mapping(address => uint256) public accountRedeemWindowBegin;
 
     /// @notice Emitted when a cool down begins
     event CoolDownStarted(address indexed account, uint256 redeemWindowBegin, uint256 redeemWindowEnd);
@@ -209,15 +203,14 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
         uint256 redeemWindowBegin = block.timestamp + coolDownTimeInSeconds;
         uint256 redeemWindowEnd = redeemWindowBegin + REDEEM_WINDOW_SECONDS;
 
-        accountCoolDown[msg.sender] = AccountCoolDown(_safe32(redeemWindowBegin), _safe32(redeemWindowEnd));
-
+        accountRedeemWindowBegin[msg.sender] = redeemWindowBegin;
         emit CoolDownStarted(msg.sender, redeemWindowBegin, redeemWindowEnd);
     }
 
     /// @notice Stops a cool down for the sender
     function stopCoolDown() external {
         // Reset the cool down back to zero so that the account must initiate it again to redeem
-        delete accountCoolDown[msg.sender];
+        delete accountRedeemWindowBegin[msg.sender];
         emit CoolDownEnded(msg.sender);
     }
 
@@ -225,11 +218,12 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
     /// NOTE or ETH). An account must have passed its cool down expiration before they can redeem
     /// @param sNOTEAmount amount of sNOTE to redeem
     function redeem(uint256 sNOTEAmount) external nonReentrant {
-        AccountCoolDown memory coolDown = accountCoolDown[msg.sender];
+        uint256 redeemWindowBegin = accountRedeemWindowBegin[msg.sender];
+        uint256 redeemWindowEnd = redeemWindowBegin + REDEEM_WINDOW_SECONDS;
         require(
-            coolDown.redeemWindowBegin != 0 &&
-            coolDown.redeemWindowBegin < block.timestamp &&
-            block.timestamp < coolDown.redeemWindowEnd,
+            redeemWindowBegin != 0 &&
+            redeemWindowBegin <= block.timestamp &&
+            block.timestamp <= redeemWindowEnd,
             "Not in Redemption Window"
         );
 
@@ -297,11 +291,11 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
     /** Internal Methods **/
 
     function _requireAccountNotInCoolDown(address account) internal view {
-        AccountCoolDown memory coolDown = accountCoolDown[account];
-        // An account is in cool down if the redeem window has begun and the window end has not
-        // passed yet.
-        bool isInCoolDown = (0 < coolDown.redeemWindowBegin && block.timestamp < coolDown.redeemWindowEnd);
-        require(!isInCoolDown, "Account in Cool Down");
+        uint256 redeemWindowBegin = accountRedeemWindowBegin[account];
+        uint256 redeemWindowEnd = redeemWindowBegin + REDEEM_WINDOW_SECONDS;
+        // An account is not in cool down if the redeem window is not set (== 0) or
+        // if the window has already passed (redeemWindowEnd < block.timestamp)
+        require(redeemWindowBegin == 0 || redeemWindowEnd < block.timestamp, "Account in Cool Down");
     }
 
     /// @notice Mints sNOTE tokens given a bptAmount
@@ -352,10 +346,5 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
         }
 
         super._beforeTokenTransfer(from, to, amount);
-    }
-
-    function _safe32(uint256 x) internal pure returns (uint32) {
-        require (x <= type(uint32).max);
-        return uint32(x);
     }
 }

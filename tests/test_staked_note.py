@@ -301,13 +301,13 @@ def test_transfer_with_delegates():
     env.sNOTE.mintFromETH(1e8, {"from": testAccounts.ETHWhale})
     env.sNOTE.delegate(testAccounts.ETHWhale, {"from": testAccounts.ETHWhale})
     env.sNOTE.delegate(env.deployer, {"from": env.deployer})
-    assert env.sNOTE.getVotes(testAccounts.ETHWhale) == env.sNOTE.balanceOf(testAccounts.ETHWhale)
+    votesStarting = env.sNOTE.getVotes(testAccounts.ETHWhale)
     assert env.sNOTE.getVotes(env.deployer) == 0
 
-    env.sNOTE.transfer(env.deployer, 1e8, {"from": testAccounts.ETHWhale})
+    env.sNOTE.transfer(env.deployer, env.sNOTE.balanceOf(testAccounts.ETHWhale), {"from": testAccounts.ETHWhale})
 
-    assert env.sNOTE.getVotes(testAccounts.ETHWhale) == env.sNOTE.balanceOf(testAccounts.ETHWhale)
-    assert env.sNOTE.getVotes(env.deployer) == 1e8
+    assert env.sNOTE.getVotes(testAccounts.ETHWhale) == 0
+    assert env.sNOTE.getVotes(env.deployer) == votesStarting
 
 def test_get_voting_power_single_staker_price_increasing():
     env = create_environment()

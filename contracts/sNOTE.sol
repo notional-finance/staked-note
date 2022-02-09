@@ -276,11 +276,19 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
         return (noteAmount * sNOTEAmount) / _totalSupply;
     }
 
-    /// @notice Calculates voting power for a given account
+    /// @notice Calculates current voting power for a given account
     /// @param account a given sNOTE holding account
     /// @return corresponding NOTE voting power
-    function votingPowerOf(address account) external view returns (uint256) {
-        return getVotingPower(balanceOf(account));
+    function getVotes(address account) public view override returns (uint256) {
+        return getVotingPower(super.getVotes(account));
+    }
+
+    /// @notice Calculates voting power for on chain voting (for use with OpenZeppelin Governor)
+    /// @param account a given sNOTE holding account
+    /// @param blockNumber a block number to calculate voting power at
+    /// @return corresponding NOTE voting power
+    function getPastVotes(address account, uint256 blockNumber) public view override returns (uint256) {
+        return getVotingPower(super.getPastVotes(account, blockNumber));
     }
 
     /** Internal Methods **/

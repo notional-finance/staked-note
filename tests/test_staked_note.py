@@ -117,16 +117,6 @@ def test_mint_from_bpt():
     assert env.balancerPool.balanceOf(testAccounts.ETHWhale) == 0
     assert env.sNOTE.balanceOf(testAccounts.ETHWhale) == bptBalance
 
-def test_mint_from_note():
-    env = create_environment()
-    testAccounts = TestAccounts()
-    env.note.transfer(testAccounts.ETHWhale, 100e8, {"from": env.deployer})
-    env.note.approve(env.sNOTE.address, 2**256-1, {"from": testAccounts.ETHWhale})
- 
-    env.sNOTE.mintFromNOTE(1e8, {"from": testAccounts.ETHWhale})
-    # This should be the same as adding 1e8 NOTE above
-    assert env.sNOTE.balanceOf(testAccounts.ETHWhale) == 1157335084531851455
-
 def test_pool_share_ratio():
     env = create_environment()
     testAccounts = TestAccounts()
@@ -158,12 +148,12 @@ def test_pool_share_ratio():
     assert env.sNOTE.totalSupply() == 0
     initialBPTBalance = env.balancerPool.balanceOf(env.sNOTE.address)
 
-    txn1 = env.sNOTE.mintFromNOTE(100e8, {"from": testAccounts.ETHWhale})
+    txn1 = env.sNOTE.mintFromETH(100e8, {"from": testAccounts.ETHWhale})
     bptFrom1 = txn1.events['Transfer'][1]['value']
     bptAdded = env.balancerPool.balanceOf(testAccounts.ETHWhale) / 2
 
     env.balancerPool.transfer(env.sNOTE.address, bptAdded, {"from": testAccounts.ETHWhale})
-    txn2 = env.sNOTE.mintFromNOTE(100e8, {"from": testAccounts.DAIWhale})
+    txn2 = env.sNOTE.mintFromETH(100e8, {"from": testAccounts.DAIWhale})
     bptFrom2 = txn2.events['Transfer'][1]['value']
 
     # Test that the pool share of the second minter does not accrue balances of those from the first
@@ -185,17 +175,49 @@ def test_pool_share_ratio():
     assert pytest.approx(poolTokenShare3, abs=1000) == bptFrom1 + bptAdded + initialBPTBalance + (bptAdded2 * sNOTEBalance1 / totalSupply)
     assert pytest.approx(poolTokenShare4, abs=1000) == bptFrom2 + (bptAdded2 * sNOTEBalance2 / totalSupply)
 
+def test_mint_from_note_and_eth():
+    env = create_environment()
+    testAccounts = TestAccounts()
+    env.note.transfer(testAccounts.ETHWhale, 100e8, {"from": env.deployer})
+    env.note.approve(env.sNOTE.address, 2**256-1, {"from": testAccounts.ETHWhale})
+
+    env.sNOTE.mintFromETH(1e8, {"from": testAccounts.ETHWhale, "value": 1e18})
+    assert env.sNOTE.balanceOf(testAccounts.ETHWhale) > 0
+
+def test_mint_from_note():
+    env = create_environment()
+    testAccounts = TestAccounts()
+    env.note.transfer(testAccounts.ETHWhale, 100e8, {"from": env.deployer})
+    env.note.approve(env.sNOTE.address, 2**256-1, {"from": testAccounts.ETHWhale})
+
+    env.sNOTE.mintFromETH(1e8, {"from": testAccounts.ETHWhale, "value": 0})
+    assert env.sNOTE.balanceOf(testAccounts.ETHWhale) > 0
+
 def test_mint_from_eth():
     env = create_environment()
     testAccounts = TestAccounts()
-    env.sNOTE.mintFromETH({"from": testAccounts.ETHWhale, "value": 1e18})
+    env.note.transfer(testAccounts.ETHWhale, 100e8, {"from": env.deployer})
+    env.note.approve(env.sNOTE.address, 2**256-1, {"from": testAccounts.ETHWhale})
+
+    env.sNOTE.mintFromETH(0, {"from": testAccounts.ETHWhale, "value": 1e18})
     assert env.sNOTE.balanceOf(testAccounts.ETHWhale) > 0
 
 def test_mint_from_weth():
     env = create_environment()
     testAccounts = TestAccounts()
     env.weth.approve(env.sNOTE.address, 2**255 - 1, {"from": testAccounts.WETHWhale})
-    env.sNOTE.mintFromWETH(1e18, {"from": testAccounts.WETHWhale})
+
+    env.sNOTE.mintFromWETH(0, 1e18, {"from": testAccounts.WETHWhale})
+    assert env.sNOTE.balanceOf(testAccounts.WETHWhale) > 0
+
+def test_mint_from_weth_and_note():
+    env = create_environment()
+    testAccounts = TestAccounts()
+    env.note.transfer(testAccounts.WETHWhale, 100e8, {"from": env.deployer})
+    env.note.approve(env.sNOTE.address, 2**256 - 1, {"from": testAccounts.WETHWhale})
+    env.weth.approve(env.sNOTE.address, 2**255 - 1, {"from": testAccounts.WETHWhale})
+
+    env.sNOTE.mintFromWETH(1e8, 1e18, {"from": testAccounts.WETHWhale})
     assert env.sNOTE.balanceOf(testAccounts.WETHWhale) > 0
 
 def test_redeem():
@@ -204,7 +226,7 @@ def test_redeem():
     env.note.transfer(testAccounts.ETHWhale, 1e8, {"from": env.deployer})
     env.note.approve(env.sNOTE.address, 2**256-1, {"from": testAccounts.ETHWhale})
 
-    env.sNOTE.mintFromNOTE(1e8, {"from": testAccounts.ETHWhale})
+    env.sNOTE.mintFromETH(1e8, {"from": testAccounts.ETHWhale})
 
     # Cannot redeem without cooldown
     with brownie.reverts("Not in Redemption Window"):
@@ -237,7 +259,7 @@ def test_transfer():
     env.note.transfer(testAccounts.ETHWhale, 1e8, {"from": env.deployer})
     env.note.approve(env.sNOTE.address, 2**256-1, {"from": testAccounts.ETHWhale})
 
-    env.sNOTE.mintFromNOTE(1e8, {"from": testAccounts.ETHWhale})
+    env.sNOTE.mintFromETH(1e8, {"from": testAccounts.ETHWhale})
     env.sNOTE.transfer(env.deployer, 1e8, {"from": testAccounts.ETHWhale})
     assert env.sNOTE.balanceOf(env.deployer) == 1e8
 
@@ -247,7 +269,7 @@ def test_no_transfer_during_cooldown():
     env.note.transfer(testAccounts.ETHWhale, 1e8, {"from": env.deployer})
     env.note.approve(env.sNOTE.address, 2**256-1, {"from": testAccounts.ETHWhale})
 
-    env.sNOTE.mintFromNOTE(1e8, {"from": testAccounts.ETHWhale})
+    env.sNOTE.mintFromETH(1e8, {"from": testAccounts.ETHWhale})
     env.sNOTE.startCoolDown({"from": testAccounts.ETHWhale})
 
     with brownie.reverts("Account in Cool Down"):
@@ -264,7 +286,7 @@ def test_transfer_with_delegates():
     env.note.transfer(testAccounts.ETHWhale, 1e8, {"from": env.deployer})
     env.note.approve(env.sNOTE.address, 2**256-1, {"from": testAccounts.ETHWhale})
 
-    env.sNOTE.mintFromNOTE(1e8, {"from": testAccounts.ETHWhale})
+    env.sNOTE.mintFromETH(1e8, {"from": testAccounts.ETHWhale})
     env.sNOTE.delegate(testAccounts.ETHWhale, {"from": testAccounts.ETHWhale})
     env.sNOTE.delegate(env.deployer, {"from": env.deployer})
     assert env.sNOTE.getVotes(testAccounts.ETHWhale) == env.sNOTE.balanceOf(testAccounts.ETHWhale)
@@ -283,18 +305,18 @@ def test_get_voting_power_single_staker_price_increasing():
     env.note.approve(env.balancerVault.address, 2 ** 255, {"from": testAccounts.WETHWhale})
     
     env.buyNOTE(1e8, testAccounts.WETHWhale)
-    env.sNOTE.mintFromNOTE(env.note.balanceOf(testAccounts.WETHWhale), {"from": testAccounts.WETHWhale})
+    env.sNOTE.mintFromETH(env.note.balanceOf(testAccounts.WETHWhale), {"from": testAccounts.WETHWhale})
     assert env.sNOTE.balanceOf(testAccounts.WETHWhale) == env.sNOTE.totalSupply()
     noteBalance = env.balancerVault.getPoolTokens(env.poolId)[1][1]
     votingPower = env.sNOTE.getVotingPower(env.sNOTE.totalSupply())
-    assert votingPower < noteBalance and votingPower == 9980502186
+    assert votingPower < noteBalance and pytest.approx(votingPower, rel=1e-5) == 9980502186
 
     env.buyNOTE(5e8, testAccounts.WETHWhale)
-    env.sNOTE.mintFromNOTE(env.note.balanceOf(testAccounts.WETHWhale), {"from": testAccounts.WETHWhale})
+    env.sNOTE.mintFromETH(env.note.balanceOf(testAccounts.WETHWhale), {"from": testAccounts.WETHWhale})
     assert env.sNOTE.balanceOf(testAccounts.WETHWhale) == env.sNOTE.totalSupply()
     noteBalance = env.balancerVault.getPoolTokens(env.poolId)[1][1]
     votingPower = env.sNOTE.getVotingPower(env.sNOTE.totalSupply())
-    assert votingPower < noteBalance and votingPower == 9896963994
+    assert votingPower < noteBalance and pytest.approx(votingPower, rel=1e-5) == 9896963994
 
 def test_get_voting_power_single_staker_price_decreasing_fast():
     env = create_environment()
@@ -304,7 +326,7 @@ def test_get_voting_power_single_staker_price_decreasing_fast():
     env.note.approve(env.sNOTEProxy.address, 2 ** 255, {"from": testAccounts.NOTEWhale})
     env.note.approve(env.balancerVault.address, 2 ** 255, {"from": testAccounts.WETHWhale})
 
-    env.sNOTE.mintFromNOTE(10e8, {"from": testAccounts.NOTEWhale})
+    env.sNOTE.mintFromETH(10e8, {"from": testAccounts.NOTEWhale})
     assert env.sNOTE.balanceOf(testAccounts.NOTEWhale) == env.sNOTE.totalSupply()
 
     env.sellNOTE(5e8, testAccounts.NOTEWhale)
@@ -321,7 +343,7 @@ def test_get_voting_power_single_staker_price_decreasing_slow():
     env.note.approve(env.sNOTEProxy.address, 2 ** 255, {"from": testAccounts.NOTEWhale})
     env.note.approve(env.balancerVault.address, 2 ** 255, {"from": testAccounts.WETHWhale})
 
-    env.sNOTE.mintFromNOTE(10e8, {"from": testAccounts.NOTEWhale})
+    env.sNOTE.mintFromETH(10e8, {"from": testAccounts.NOTEWhale})
     assert env.sNOTE.balanceOf(testAccounts.NOTEWhale) == env.sNOTE.totalSupply()
 
     env.sellNOTE(1e8, testAccounts.NOTEWhale)

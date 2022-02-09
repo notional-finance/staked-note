@@ -143,38 +143,28 @@ contract sNOTE is ERC20Upgradeable, ERC20VotesUpgradeable, BoringOwnable, UUPSUp
         _mint(msg.sender, bptAmount);
     }
 
-    /// @notice Mints sNOTE from some amount of NOTE tokens.
+    /// @notice Mints sNOTE from some amount of NOTE and ETH
     /// @param noteAmount amount of NOTE to transfer into the sNOTE contract
-    function mintFromNOTE(uint256 noteAmount) external nonReentrant {
+    function mintFromETH(uint256 noteAmount) payable external nonReentrant {
         // Transfer the NOTE balance into sNOTE first
-        NOTE.safeTransferFrom(msg.sender, address(this), noteAmount);
+        if (noteAmount > 0) NOTE.safeTransferFrom(msg.sender, address(this), noteAmount);
 
-        IAsset[] memory assets = new IAsset[](2);
-        assets[0] = IAsset(address(0));
-        assets[1] = IAsset(address(NOTE));
-        uint256[] memory maxAmountsIn = new uint256[](2);
-        maxAmountsIn[0] = 0;
-        maxAmountsIn[1] = noteAmount;
-
-        _mintFromAssets(assets, maxAmountsIn);
-    }
-
-    /// @notice Mints sNOTE from some amount of ETH
-    function mintFromETH() payable external nonReentrant {
         IAsset[] memory assets = new IAsset[](2);
         assets[0] = IAsset(address(0));
         assets[1] = IAsset(address(NOTE));
         uint256[] memory maxAmountsIn = new uint256[](2);
         maxAmountsIn[0] = msg.value;
-        maxAmountsIn[1] = 0;
+        maxAmountsIn[1] = noteAmount;
 
         _mintFromAssets(assets, maxAmountsIn);
     }
 
-    /// @notice Mints sNOTE from some amount of WETH
+    /// @notice Mints sNOTE from some amount of NOTE and WETH
+    /// @param noteAmount amount of NOTE to transfer into the sNOTE contract
     /// @param wethAmount amount of WETH to transfer into the sNOTE contract
-    function mintFromWETH(uint256 wethAmount) external nonReentrant {
-        // Transfer the NOTE balance into sNOTE first
+    function mintFromWETH(uint256 noteAmount, uint256 wethAmount) external nonReentrant {
+        // Transfer the NOTE and WETH balance into sNOTE first
+        if (noteAmount > 0) NOTE.safeTransferFrom(msg.sender, address(this), noteAmount);
         WETH.safeTransferFrom(msg.sender, address(this), wethAmount);
 
         IAsset[] memory assets = new IAsset[](2);
@@ -182,7 +172,7 @@ contract sNOTE is ERC20Upgradeable, ERC20VotesUpgradeable, BoringOwnable, UUPSUp
         assets[1] = IAsset(address(NOTE));
         uint256[] memory maxAmountsIn = new uint256[](2);
         maxAmountsIn[0] = wethAmount;
-        maxAmountsIn[1] = 0;
+        maxAmountsIn[1] = noteAmount;
 
         _mintFromAssets(assets, maxAmountsIn);
     }

@@ -308,10 +308,6 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
     /// @param account account to mint tokens to
     /// @param bptAmount the number of BPT tokens being minted by the account
     function _mint(address account, uint256 bptAmount) internal override {
-        // Cannot mint if a cooldown is already in effect. If an account mints during a cool down period then they will
-        // be able to redeem the tokens immediately, bypassing the cool down.
-        _requireAccountNotInCoolDown(account);
-
         // Immediately after minting, we need to satisfy the equality:
         // (sNOTEToMint * bptBalance) / (totalSupply + sNOTEToMint) == bptAmount
 

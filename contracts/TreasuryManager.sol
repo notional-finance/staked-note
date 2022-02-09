@@ -55,9 +55,8 @@ contract TreasuryManager is
         address _sNOTE,
         address _assetProxy
     ) EIP1271Wallet(_weth) initializer {
-        // prettier-ignore
+        // Balancer will revert if pool is not found
         (address poolAddress, /* */) = _balancerVault.getPool(_noteETHPoolId);
-        require(poolAddress != address(0));
 
         NOTIONAL = NotionalTreasuryAction(_notional);
         sNOTE = _sNOTE;

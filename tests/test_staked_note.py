@@ -65,6 +65,14 @@ def test_extract_tokens_for_shortfall():
     assert pytest.approx(env.weth.balanceOf(env.deployer)) == 6e18
     assert pytest.approx(noteAfter - noteBefore, abs=1) == 30e8
 
+    with brownie.reverts("Shortfall Cooldown"):
+        env.sNOTE.extractTokensForCollateralShortfall(bptBefore * 0.3, {"from": env.deployer})
+
+    # Can extract again after shortfall window passes
+    chain.mine(1, timestamp=chain.time() + 86400 * 8)
+    env.sNOTE.extractTokensForCollateralShortfall(1e8, {"from": env.deployer})
+
+
 def test_extract_tokens_for_shortfall_cap():
     env = create_environment()
     testAccounts = TestAccounts()

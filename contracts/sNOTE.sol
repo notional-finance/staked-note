@@ -22,6 +22,7 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
 
     /// @notice Maximum shortfall withdraw of 50%
     uint256 public constant MAX_SHORTFALL_WITHDRAW = 50;
+    uint256 public constant SHORTFALL_WITHDRAW_COOLDOWN = 7 days;
 
     /// @notice Redemption window in seconds
     uint256 public constant REDEEM_WINDOW_SECONDS = 3 days;
@@ -29,6 +30,9 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
 
     /// @notice Number of seconds that need to pass before sNOTE can be redeemed
     uint32 public coolDownTimeInSeconds;
+    
+    /// @notice Timestamp of the last time a shortfall was withdrawn
+    uint32 public lastShortfallWithdrawTime;
 
     /// @notice Mapping between sNOTE holders and their cool down status
     mapping(address => uint256) public accountRedeemWindowBegin;
@@ -92,6 +96,11 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
 
     /// @notice Allows the DAO to extract up to 50% of the BPT tokens during a collateral shortfall event
     function extractTokensForCollateralShortfall(uint256 requestedWithdraw) external nonReentrant onlyOwner {
+        // Check that the last shortfall withdraw time was not recent
+        uint32 blockTime = _safe32(block.timestamp);
+        require(lastShortfallWithdrawTime + SHORTFALL_WITHDRAW_COOLDOWN < blockTime, "Shortfall Cooldown");
+        lastShortfallWithdrawTime = blockTime;
+
         uint256 bptBalance = BALANCER_POOL_TOKEN.balanceOf(address(this));
         uint256 maxBPTWithdraw = (bptBalance * MAX_SHORTFALL_WITHDRAW) / 100;
         // Do not allow a withdraw of more than the MAX_SHORTFALL_WITHDRAW percentage. Specifically don't
@@ -349,5 +358,10 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
         }
 
         super._beforeTokenTransfer(from, to, amount);
+    }
+
+    function _safe32(uint256 x) internal pure returns (uint32) {
+        require (x <= type(uint32).max);
+        return uint32(x);
     }
 }

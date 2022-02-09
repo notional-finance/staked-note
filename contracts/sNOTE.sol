@@ -244,9 +244,12 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
 
     /// @notice Returns how many Balancer pool tokens an sNOTE token amount has a claim on
     function getPoolTokenShare(uint256 sNOTEAmount) public view returns (uint256 bptClaim) {
+        uint256 _totalSupply = totalSupply();
+        if (_totalSupply == 0) return 0;
+
         uint256 bptBalance = BALANCER_POOL_TOKEN.balanceOf(address(this));
         // BPT and sNOTE are both in 18 decimal precision so no conversion required
-        return (bptBalance * sNOTEAmount) / totalSupply();
+        return (bptBalance * sNOTEAmount) / _totalSupply;
     }
 
     /// @notice Returns the pool token share of a specific account
@@ -258,6 +261,9 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
     /// @param sNOTEAmount amount of sNOTE to calculate voting power for
     /// @return corresponding NOTE voting power
     function getVotingPower(uint256 sNOTEAmount) public view returns (uint256) {
+        uint256 _totalSupply = totalSupply();
+        if (_totalSupply == 0) return 0;
+
         // Gets the BPT token price (in ETH)
         uint256 bptPrice = IPriceOracle(address(BALANCER_POOL_TOKEN)).getLatest(IPriceOracle.Variable.BPT_PRICE);
         // Gets the NOTE token price (in ETH)
@@ -278,7 +284,7 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
         // we divide by 1e28 to get to 1e8
         noteAmount /= 1e28;
 
-        return (noteAmount * sNOTEAmount) / totalSupply();
+        return (noteAmount * sNOTEAmount) / _totalSupply;
     }
 
     /// @notice Calculates voting power for a given account

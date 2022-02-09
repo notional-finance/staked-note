@@ -148,7 +148,8 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
 
     /// @notice Mints sNOTE from some amount of NOTE and ETH
     /// @param noteAmount amount of NOTE to transfer into the sNOTE contract
-    function mintFromETH(uint256 noteAmount) payable external nonReentrant {
+    /// @param minBPT slippage parameter to prevent front running
+    function mintFromETH(uint256 noteAmount, uint256 minBPT) payable external nonReentrant {
         // Transfer the NOTE balance into sNOTE first
         if (noteAmount > 0) NOTE.safeTransferFrom(msg.sender, address(this), noteAmount);
 
@@ -159,13 +160,14 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
         maxAmountsIn[0] = msg.value;
         maxAmountsIn[1] = noteAmount;
 
-        _mintFromAssets(assets, maxAmountsIn);
+        _mintFromAssets(assets, maxAmountsIn, minBPT);
     }
 
     /// @notice Mints sNOTE from some amount of NOTE and WETH
     /// @param noteAmount amount of NOTE to transfer into the sNOTE contract
     /// @param wethAmount amount of WETH to transfer into the sNOTE contract
-    function mintFromWETH(uint256 noteAmount, uint256 wethAmount) external nonReentrant {
+    /// @param minBPT slippage parameter to prevent front running
+    function mintFromWETH(uint256 noteAmount, uint256 wethAmount, uint256 minBPT) external nonReentrant {
         // Transfer the NOTE and WETH balance into sNOTE first
         if (noteAmount > 0) NOTE.safeTransferFrom(msg.sender, address(this), noteAmount);
         WETH.safeTransferFrom(msg.sender, address(this), wethAmount);
@@ -177,10 +179,10 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
         maxAmountsIn[0] = wethAmount;
         maxAmountsIn[1] = noteAmount;
 
-        _mintFromAssets(assets, maxAmountsIn);
+        _mintFromAssets(assets, maxAmountsIn, minBPT);
     }
 
-    function _mintFromAssets(IAsset[] memory assets, uint256[] memory maxAmountsIn) internal {
+    function _mintFromAssets(IAsset[] memory assets, uint256[] memory maxAmountsIn, uint256 minBPT) internal {
         uint256 bptBefore = BALANCER_POOL_TOKEN.balanceOf(address(this));
         // Set msgValue when joining via ETH
         uint256 msgValue = assets[0] == IAsset(address(0)) ? maxAmountsIn[0] : 0;
@@ -195,7 +197,7 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
                 abi.encode(
                     IVault.JoinKind.EXACT_TOKENS_IN_FOR_BPT_OUT,
                     maxAmountsIn,
-                    0 // Accept however much BPT the pool will give us
+                    minBPT
                 ),
                 false // Don't use internal balances
             )

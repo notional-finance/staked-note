@@ -40,10 +40,10 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
     mapping(address => AccountCoolDown) public accountCoolDown;
 
     /// @notice Emitted when a cool down begins
-    event CoolDownStarted(address account, uint256 redeemWindowBegin, uint256 redeemWindowEnd);
+    event CoolDownStarted(address indexed account, uint256 redeemWindowBegin, uint256 redeemWindowEnd);
 
     /// @notice Emitted when a cool down ends
-    event CoolDownEnded(address account);
+    event CoolDownEnded(address indexed account);
 
     /// @notice Emitted when cool down time is updated
     event GlobalCoolDownUpdated(uint256 newCoolDownTimeSeconds);

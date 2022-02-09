@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.7.0;
+pragma solidity =0.8.11;
 
-import "./SafeInt256.sol";
 import "interfaces/chainlink/AggregatorV2V3Interface.sol";
 
 contract ChainlinkAdapter is AggregatorV2V3Interface {
-    using SafeInt256 for int256;
     uint8 public override constant decimals = 18;
     uint256 public override constant version = 1;
     int256 public constant rateDecimals = 10**18;
@@ -55,11 +53,7 @@ contract ChainlinkAdapter is AggregatorV2V3Interface {
 
         // To convert from USDC/USD (base) and ETH/USD (quote) to USDC/ETH we do:
         // (USDC/USD * quoteDecimals * 1e18) / (ETH/USD * baseDecimals)
-        answer = baseToUSD
-            .mul(quoteToUSDDecimals)
-            .mul(rateDecimals)
-            .div(quoteToUSD)
-            .div(baseToUSDDecimals);
+        answer = (baseToUSD * quoteToUSDDecimals * rateDecimals) / (quoteToUSD * baseToUSDDecimals);
     }
 
     function latestRoundData() external view override returns (

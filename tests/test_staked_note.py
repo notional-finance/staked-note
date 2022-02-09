@@ -309,6 +309,28 @@ def test_transfer_with_delegates():
     assert env.sNOTE.getVotes(testAccounts.ETHWhale) == 0
     assert env.sNOTE.getVotes(env.deployer) == votesStarting
 
+def test_cannot_transfer_inside_redeem_window():
+    env = create_environment()
+    testAccounts = TestAccounts()
+    env.note.transfer(testAccounts.ETHWhale, 1e8, {"from": env.deployer})
+    env.note.approve(env.sNOTE.address, 2**256-1, {"from": testAccounts.ETHWhale})
+
+    env.sNOTE.mintFromETH(1e8, {"from": testAccounts.ETHWhale})
+    env.sNOTE.startCoolDown({"from": testAccounts.ETHWhale})
+
+    chain.mine(timestamp=(chain.time() + 105))
+    # Successful redeem to show that we are in the window
+    env.sNOTE.redeem(env.sNOTE.balanceOf(testAccounts.ETHWhale) / 2, {"from": testAccounts.ETHWhale})
+    
+    # Cannot transfer tokens even during the redemption window
+    with brownie.reverts("Account in Cool Down"):
+        env.sNOTE.transfer(env.deployer, env.sNOTE.balanceOf(testAccounts.ETHWhale), {"from": testAccounts.ETHWhale})
+
+    chain.mine(timestamp=(chain.time() + 86400 * 3))
+
+    # Can transfer once you leave the redemption window
+    env.sNOTE.transfer(env.deployer, env.sNOTE.balanceOf(testAccounts.ETHWhale), {"from": testAccounts.ETHWhale})
+
 def test_get_voting_power_single_staker_price_increasing():
     env = create_environment()
     testAccounts = TestAccounts()

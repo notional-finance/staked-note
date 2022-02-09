@@ -22,7 +22,7 @@ contract BoringOwnable is BoringOwnableData {
         address newOwner,
         bool direct,
         bool renounce
-    ) public onlyOwner {
+    ) external onlyOwner {
         if (direct) {
             // Checks
             require(newOwner != address(0) || renounce, "Ownable: zero address");
@@ -38,7 +38,7 @@ contract BoringOwnable is BoringOwnableData {
     }
 
     /// @notice Needs to be called by `pendingOwner` to claim ownership.
-    function claimOwnership() public {
+    function claimOwnership() external {
         address _pendingOwner = pendingOwner;
 
         // Checks

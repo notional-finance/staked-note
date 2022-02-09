@@ -218,7 +218,7 @@ contract TreasuryManager is
         return _isValidSignature(data, signature, manager);
     }
 
-    function _authorizeUpgrade(address newImplementation)
+    function _authorizeUpgrade(address /* newImplementation */)
         internal
         override
         onlyOwner

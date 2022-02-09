@@ -108,9 +108,6 @@ contract sNOTE is ERC20Upgradeable, ERC20VotesUpgradeable, BoringOwnable, UUPSUp
         IAsset[] memory assets = new IAsset[](2);
         assets[0] = IAsset(address(WETH));
         assets[1] = IAsset(address(NOTE));
-        uint256[] memory minAmountsOut = new uint256[](2);
-        minAmountsOut[0] = 0;
-        minAmountsOut[1] = 0;
 
         BALANCER_VAULT.exitPool(
             NOTE_ETH_POOL_ID,
@@ -118,7 +115,10 @@ contract sNOTE is ERC20Upgradeable, ERC20VotesUpgradeable, BoringOwnable, UUPSUp
             payable(owner), // Owner will receive the NOTE and WETH
             IVault.ExitPoolRequest(
                 assets,
-                minAmountsOut,
+                // Accept whatever NOTE/WETH we will receive here, since these
+                // withdraws will be in a timelock it will be difficult to determine
+                // how the pool will be constituted at the time of withdraw
+                new uint256[](2),
                 abi.encode(
                     IVault.ExitKind.EXACT_BPT_IN_FOR_TOKENS_OUT,
                     bptExitAmount

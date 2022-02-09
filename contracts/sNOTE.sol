@@ -215,7 +215,7 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
     }
 
     /// @notice Stops a cool down for the sender
-    function stopCoolDown() public {
+    function stopCoolDown() external {
         // Reset the cool down back to zero so that the account must initiate it again to redeem
         delete accountCoolDown[msg.sender];
         emit CoolDownEnded(msg.sender);

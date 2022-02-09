@@ -220,6 +220,18 @@ def test_mint_from_weth_and_note():
     env.sNOTE.mintFromWETH(1e8, 1e18, {"from": testAccounts.WETHWhale})
     assert env.sNOTE.balanceOf(testAccounts.WETHWhale) > 0
 
+def test_no_mint_during_cooldown():
+    env = create_environment()
+    testAccounts = TestAccounts()
+    env.note.transfer(testAccounts.ETHWhale, 1e8, {"from": env.deployer})
+    env.note.approve(env.sNOTE.address, 2**256-1, {"from": testAccounts.ETHWhale})
+
+    env.sNOTE.startCoolDown({"from": testAccounts.ETHWhale})
+
+    with brownie.reverts("Account in Cool Down"):
+        env.sNOTE.mintFromETH(1e8, {"from": testAccounts.ETHWhale})
+        env.sNOTE.mintFromWETH(1e8, 0, {"from": testAccounts.ETHWhale})
+
 def test_redeem():
     env = create_environment()
     testAccounts = TestAccounts()

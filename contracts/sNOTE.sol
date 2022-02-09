@@ -357,7 +357,9 @@ contract sNOTE is ERC20Upgradeable, ERC20VotesUpgradeable, BoringOwnable, UUPSUp
         if (to != address(0)) {
             // Run these checks only when we are not burning tokens. (OZ ERC20 does not allow transfers
             // to address(0), to == address(0) only when _burn is called).
-            _requireAccountNotInCoolDown(from);
+
+            // from == address(0) when minting, no need to check cool down
+            if (from != address(0)) _requireAccountNotInCoolDown(from);
             _requireAccountNotInCoolDown(to);
         }
 

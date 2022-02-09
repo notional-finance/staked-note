@@ -26,6 +26,7 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
 
     /// @notice Redemption window in seconds
     uint256 public constant REDEEM_WINDOW_SECONDS = 3 days;
+    uint32 public constant MAXIMUM_COOL_DOWN_PERIOD_SECONDS = 30 days;
 
     /// @notice Number of seconds that need to pass before sNOTE can be redeemed
     uint32 public coolDownTimeInSeconds;
@@ -81,10 +82,11 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
     /** Governance Methods **/
 
     /// @notice Authorizes the DAO to upgrade this contract
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+    function _authorizeUpgrade(address /* newImplementation */) internal override onlyOwner {}
 
     /// @notice Updates the required cooldown time to redeem
     function setCoolDownTime(uint32 _coolDownTimeInSeconds) external onlyOwner {
+        require(_coolDownTimeInSeconds <= MAXIMUM_COOL_DOWN_PERIOD_SECONDS);
         coolDownTimeInSeconds = _coolDownTimeInSeconds;
         emit GlobalCoolDownUpdated(_coolDownTimeInSeconds);
     }

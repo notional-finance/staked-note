@@ -226,7 +226,6 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
     /// @param sNOTEAmount amount of sNOTE to redeem
     function redeem(uint256 sNOTEAmount) external nonReentrant {
         AccountCoolDown memory coolDown = accountCoolDown[msg.sender];
-        require(sNOTEAmount <= balanceOf(msg.sender), "Insufficient balance");
         require(
             coolDown.redeemWindowBegin != 0 &&
             coolDown.redeemWindowBegin < block.timestamp &&
@@ -235,8 +234,9 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
         );
 
         uint256 bptToRedeem = getPoolTokenShare(sNOTEAmount);
-        _burn(msg.sender, bptToRedeem);
 
+        // Handles event emission, balance update and total supply update
+        _burn(msg.sender, sNOTEAmount);
         BALANCER_POOL_TOKEN.safeTransfer(msg.sender, bptToRedeem);
     }
 
@@ -296,19 +296,6 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
         // passed yet.
         bool isInCoolDown = (0 < coolDown.redeemWindowBegin && block.timestamp < coolDown.redeemWindowEnd);
         require(!isInCoolDown, "Account in Cool Down");
-    }
-
-    /// @notice Burns sNOTE tokens when they are redeemed
-    /// @param account account to burn tokens on
-    /// @param bptToRedeem the number of BPT tokens being redeemed by the account
-    function _burn(address account, uint256 bptToRedeem) internal override {
-        uint256 poolTokenShare = poolTokenShareOf(account);
-        require(bptToRedeem <= poolTokenShare, "Invalid Redeem Amount");
-
-        // Burns the portion of the sNOTE corresponding to the bptToRedeem
-        uint256 sNOTEToBurn = balanceOf(account) * bptToRedeem / poolTokenShare;
-        // Handles event emission, balance update and total supply update
-        super._burn(account, sNOTEToBurn);
     }
 
     /// @notice Mints sNOTE tokens given a bptAmount

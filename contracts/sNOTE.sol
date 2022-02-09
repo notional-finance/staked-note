@@ -267,7 +267,7 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
         // this formula to calculate noteAmount
         // bptBalance * bptPrice = notePrice * noteAmount
         // noteAmount = bptPrice/notePrice * bptBalance
-        uint256 priceRatio = bptPrice * 1e18 / notePrice;
+        uint256 priceRatio = bptPrice * BPT_TOKEN_PRECISION / notePrice;
         uint256 bptBalance = BALANCER_POOL_TOKEN.balanceOf(address(this));
 
         // Amount_note = Price_NOTE_per_BPT * BPT_supply * 80% (80/20 pool)

@@ -7,12 +7,11 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin-upgradeable/contracts/token/ERC20/extensions/ERC20VotesUpgradeable.sol";
-import "@openzeppelin-upgradeable/contracts/token/ERC20/ERC20Upgradeable.sol";
 import {IVault, IAsset} from "interfaces/balancer/IVault.sol";
 import "interfaces/balancer/IWeightedPool.sol";
 import "interfaces/balancer/IPriceOracle.sol";
 
-contract sNOTE is ERC20Upgradeable, ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, ReentrancyGuard {
+contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, ReentrancyGuard {
     using SafeERC20 for ERC20;
 
     IVault public immutable BALANCER_VAULT;
@@ -302,7 +301,7 @@ contract sNOTE is ERC20Upgradeable, ERC20VotesUpgradeable, BoringOwnable, UUPSUp
     /// @notice Burns sNOTE tokens when they are redeemed
     /// @param account account to burn tokens on
     /// @param bptToRedeem the number of BPT tokens being redeemed by the account
-    function _burn(address account, uint256 bptToRedeem) internal override(ERC20Upgradeable, ERC20VotesUpgradeable) {
+    function _burn(address account, uint256 bptToRedeem) internal override {
         uint256 poolTokenShare = poolTokenShareOf(account);
         require(bptToRedeem <= poolTokenShare, "Invalid Redeem Amount");
 
@@ -315,7 +314,7 @@ contract sNOTE is ERC20Upgradeable, ERC20VotesUpgradeable, BoringOwnable, UUPSUp
     /// @notice Mints sNOTE tokens given a bptAmount
     /// @param account account to mint tokens to
     /// @param bptAmount the number of BPT tokens being minted by the account
-    function _mint(address account, uint256 bptAmount) internal override(ERC20Upgradeable, ERC20VotesUpgradeable) {
+    function _mint(address account, uint256 bptAmount) internal override {
         // Cannot mint if a cooldown is already in effect. If an account mints during a cool down period then they will
         // be able to redeem the tokens immediately, bypassing the cool down.
         _requireAccountNotInCoolDown(account);
@@ -349,7 +348,7 @@ contract sNOTE is ERC20Upgradeable, ERC20VotesUpgradeable, BoringOwnable, UUPSUp
         address from,
         address to,
         uint256 amount
-    ) internal override(ERC20Upgradeable) {
+    ) internal override {
         // Cannot send or receive tokens if a cool down is in effect or else accounts
         // can bypass the cool down. It's not clear if sending tokens can be used to bypass
         // the cool down but we restrict it here anyway, there's no clear use case for sending
@@ -364,15 +363,6 @@ contract sNOTE is ERC20Upgradeable, ERC20VotesUpgradeable, BoringOwnable, UUPSUp
         }
 
         super._beforeTokenTransfer(from, to, amount);
-    }
-
-    function _afterTokenTransfer(
-        address from,
-        address to,
-        uint256 amount
-    ) internal override(ERC20Upgradeable, ERC20VotesUpgradeable) {
-        // Moves sNOTE checkpoints
-        super._afterTokenTransfer(from, to, amount);
     }
 
     function _safe32(uint256 x) internal pure returns (uint32) {

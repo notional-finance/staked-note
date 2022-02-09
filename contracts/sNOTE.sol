@@ -22,7 +22,6 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
 
     /// @notice Maximum shortfall withdraw of 50%
     uint256 public constant MAX_SHORTFALL_WITHDRAW = 50;
-    uint256 public constant BPT_TOKEN_PRECISION = 1e18;
 
     /// @notice Redemption window in seconds
     uint256 public constant REDEEM_WINDOW_SECONDS = 3 days;
@@ -267,18 +266,12 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
         
         // Since both bptPrice and notePrice are denominated in ETH, we can use
         // this formula to calculate noteAmount
-        // bptBalance * bptPrice = notePrice * noteAmount
-        // noteAmount = bptPrice/notePrice * bptBalance
-        uint256 priceRatio = bptPrice * BPT_TOKEN_PRECISION / notePrice;
+        // (bptBalance * 0.8) * bptPrice = notePrice * noteAmount
+        // noteAmount = (bptPrice * bptBalance * 0.8) / notePrice
         uint256 bptBalance = BALANCER_POOL_TOKEN.balanceOf(address(this));
-
-        // Amount_note = Price_NOTE_per_BPT * BPT_supply * 80% (80/20 pool)
-        uint256 noteAmount = priceRatio * bptBalance * 80 / 100;
-
-        // Reduce precision down to 1e8 (NOTE token)
-        // priceRatio and bptBalance are both 1e18 (1e36 total)
-        // we divide by 1e28 to get to 1e8
-        noteAmount /= 1e28;
+        // This calculation is (NOTE tokens are in 8 decimal precision):
+        // (1e18 * 1e18 * 1e2) / (1e18 * 1e2 * 1e10) == 1e8
+        uint256 noteAmount = (bptPrice * bptBalance * 80) / (notePrice * 100 * 1e10);
 
         return (noteAmount * sNOTEAmount) / _totalSupply;
     }

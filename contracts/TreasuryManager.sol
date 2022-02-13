@@ -32,7 +32,6 @@ contract TreasuryManager is
     address public immutable ASSET_PROXY;
 
     address public manager;
-    uint32 public refundGasPrice;
     uint256 public notePurchaseLimit;
 
     event ManagementTransferred(address prevManager, address newManager);

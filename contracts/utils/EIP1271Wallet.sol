@@ -14,6 +14,8 @@ contract EIP1271Wallet {
     uint256 internal constant FEE_RECIPIENT_OFFSET = 144;
     uint256 internal constant MAKER_AMOUNT_OFFSET = 196;
     uint256 internal constant TAKER_AMOUNT_OFFSET = 228;
+    uint256 internal constant MAKER_FEE_AMOUNT_OFFSET = 260;
+    uint256 internal constant TAKER_FEE_AMOUNT_OFFSET = 292;
     uint256 internal constant MAKER_TOKEN_OFFSET = 564;
     uint256 internal constant TAKER_TOKEN_OFFSET = 660;
     uint256 internal constant SLIPPAGE_LIMIT_PRECISION = 1e8;
@@ -94,7 +96,9 @@ contract EIP1271Wallet {
             address takerToken,
             address feeRecipient,
             uint256 makerAmount,
-            uint256 takerAmount
+            uint256 takerAmount,
+            uint256 makerFeeAmount,
+            uint256 takerFeeAmount
         )
     {
         require(
@@ -104,6 +108,8 @@ contract EIP1271Wallet {
         feeRecipient = _toAddress(encoded, FEE_RECIPIENT_OFFSET);
         makerAmount = _toUint256(encoded, MAKER_AMOUNT_OFFSET);
         takerAmount = _toUint256(encoded, TAKER_AMOUNT_OFFSET);
+        makerFeeAmount = _toUint256(encoded, MAKER_FEE_AMOUNT_OFFSET);
+        takerFeeAmount = _toUint256(encoded, TAKER_FEE_AMOUNT_OFFSET);
         makerToken = _toAddress(encoded, MAKER_TOKEN_OFFSET);
         takerToken = _toAddress(encoded, TAKER_TOKEN_OFFSET);
     }
@@ -150,7 +156,9 @@ contract EIP1271Wallet {
             address takerToken,
             address feeRecipient,
             uint256 makerAmount,
-            uint256 takerAmount
+            uint256 takerAmount,
+            uint256 makerFeeAmount,
+            uint256 takerFeeAmount
         ) = _extractOrderInfo(order);
 
         // No fee recipient allowed
@@ -161,6 +169,10 @@ contract EIP1271Wallet {
 
         // TakerToken (proceeds) should always be WETH
         require(takerToken == address(WETH), "taker token must be WETH");
+
+        // No fees allowed
+        require(makerFeeAmount == 0, "maker fee must be 0");
+        require(takerFeeAmount == 0, "taker fee must be 0");
 
         address priceOracle = priceOracles[makerToken];
 

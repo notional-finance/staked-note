@@ -82,6 +82,7 @@ contract TreasuryManager is
         external
         onlyOwner
     {
+        /// @dev oracleAddress validated inside _setPriceOracle
         _setPriceOracle(tokenAddress, oracleAddress);
     }
 
@@ -89,6 +90,7 @@ contract TreasuryManager is
         external
         onlyOwner
     {
+        /// @dev slippageLimit validated inside _setSlippageLimit
         _setSlippageLimit(tokenAddress, slippageLimit);
     }
 

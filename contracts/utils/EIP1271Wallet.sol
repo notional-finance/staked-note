@@ -137,6 +137,7 @@ contract EIP1271Wallet {
     function _setPriceOracle(address tokenAddress, address oracleAddress)
         internal
     {
+        require(oracleAddress != address(0), "invalid oracle address");
         priceOracles[tokenAddress] = oracleAddress;
         emit PriceOracleUpdated(tokenAddress, oracleAddress);
     }

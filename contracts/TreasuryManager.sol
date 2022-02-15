@@ -104,7 +104,7 @@ contract TreasuryManager is
     function withdraw(address token, uint256 amount) external onlyOwner {
         if (amount == type(uint256).max)
             amount = IERC20(token).balanceOf(address(this));
-        IERC20(token).safeTransfer(owner, amount);
+        IERC20(token).safeTransfer(msg.sender, amount);
     }
 
     function wrapToWETH() external onlyManager {

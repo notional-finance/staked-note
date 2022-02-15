@@ -196,11 +196,18 @@ contract EIP1271Wallet {
         // Slippage limit not defined
         require(slippageLimit != 0, "slippage limit not defined");
 
-        uint256 oraclePrice = _toUint(
-            AggregatorV2V3Interface(priceOracle).latestAnswer()
-        );
+        // prettier-ignore
+        (
+            /* roundId */,
+            int256 rate,
+            /* uint256 startedAt */,
+            /* updatedAt */,
+            /* answeredInRound */
+        ) = AggregatorV2V3Interface(priceOracle).latestRoundData();
+        require(rate > 0, "Invalid rate");
 
-        uint256 priceFloor = (oraclePrice * slippageLimit) /
+        /// @dev no overflow because rate is always > 0
+        uint256 priceFloor = (uint256(rate) * slippageLimit) /
             SLIPPAGE_LIMIT_PRECISION;
 
         uint256 makerDecimals = 10**ERC20(makerToken).decimals();

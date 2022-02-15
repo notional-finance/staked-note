@@ -11,7 +11,9 @@ contract EIP1271Wallet {
     // 0x order encoding is implemented in _encodeEIP1271OrderWithHash
     // https://github.com/0xProject/0x-monorepo/blob/development/contracts/exchange/contracts/src/MixinSignatureValidator.sol
     uint256 internal constant ORDER_HASH_OFFSET = 36;
+    uint256 internal constant TAKER_ADDRESS_OFFSET = 100;
     uint256 internal constant FEE_RECIPIENT_OFFSET = 144;
+    uint256 internal constant SENDER_ADDRESS_OFFSET = 176;
     uint256 internal constant MAKER_AMOUNT_OFFSET = 196;
     uint256 internal constant TAKER_AMOUNT_OFFSET = 228;
     uint256 internal constant MAKER_FEE_AMOUNT_OFFSET = 260;
@@ -92,9 +94,11 @@ contract EIP1271Wallet {
         private
         pure
         returns (
+            address takerAddress,
             address makerToken,
             address takerToken,
             address feeRecipient,
+            address senderAddress,
             uint256 makerAmount,
             uint256 takerAmount,
             uint256 makerFeeAmount,
@@ -105,7 +109,9 @@ contract EIP1271Wallet {
             encoded.length >= TAKER_TOKEN_OFFSET + 32,
             "encoded: invalid length"
         );
+        takerAddress = _toAddress(encoded, TAKER_ADDRESS_OFFSET);
         feeRecipient = _toAddress(encoded, FEE_RECIPIENT_OFFSET);
+        senderAddress = _toAddress(encoded, SENDER_ADDRESS_OFFSET);
         makerAmount = _toUint256(encoded, MAKER_AMOUNT_OFFSET);
         takerAmount = _toUint256(encoded, TAKER_AMOUNT_OFFSET);
         makerFeeAmount = _toUint256(encoded, MAKER_FEE_AMOUNT_OFFSET);
@@ -152,14 +158,20 @@ contract EIP1271Wallet {
     /// @notice make sure the order satisfies some pre-defined constraints
     function _validateOrder(bytes memory order) private view {
         (
+            address takerAddress,
             address makerToken,
             address takerToken,
             address feeRecipient,
+            address senderAddress,
             uint256 makerAmount,
             uint256 takerAmount,
             uint256 makerFeeAmount,
             uint256 takerFeeAmount
         ) = _extractOrderInfo(order);
+
+        // Make sure anyone can fill these orders
+        require(takerAddress == address(0), "manager cannot set taker");
+        require(senderAddress == address(0), "manager cannot set sender");
 
         // No fee recipient allowed
         require(feeRecipient == address(0), "no fee recipient allowed");

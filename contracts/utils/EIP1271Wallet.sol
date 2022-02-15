@@ -205,9 +205,15 @@ contract EIP1271Wallet {
         ) = AggregatorV2V3Interface(priceOracle).latestRoundData();
         require(rate > 0, "Invalid rate");
 
+        uint256 rateDecimals = AggregatorV2V3Interface(priceOracle).decimals();
+        require(rateDecimals <= 18, "Invalid rate precision");
+
         /// @dev no overflow because rate is always > 0
         uint256 priceFloor = (uint256(rate) * slippageLimit) /
             SLIPPAGE_LIMIT_PRECISION;
+
+        // make sure priceFloor is always 18 decimals
+        priceFloor *= 10**(18 - rateDecimals);
 
         uint256 makerDecimals = 10**ERC20(makerToken).decimals();
 

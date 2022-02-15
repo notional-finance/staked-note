@@ -74,6 +74,7 @@ contract TreasuryManager is
     }
 
     function approveToken(address token, uint256 amount) external onlyOwner {
+        IERC20(token).approve(ASSET_PROXY, 0);
         IERC20(token).approve(ASSET_PROXY, amount);
     }
 

@@ -21,7 +21,6 @@ contract EIP1271Wallet {
     uint256 internal constant MAKER_TOKEN_OFFSET = 564;
     uint256 internal constant TAKER_TOKEN_OFFSET = 660;
     uint256 internal constant SLIPPAGE_LIMIT_PRECISION = 1e8;
-    uint256 internal constant ETH_PRECISION = 1e18;
 
     bytes4 internal constant EIP1271_MAGIC_NUM = 0x20c13b0b;
     bytes4 internal constant EIP1271_INVALID_SIG = 0xffffffff;

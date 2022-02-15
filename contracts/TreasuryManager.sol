@@ -139,34 +139,6 @@ contract TreasuryManager is
     }
 
     function investWETHToBuyNOTE(uint256 wethAmount) external onlyManager {
-        _investWETHToBuyNOTE(wethAmount);
-    }
-
-    function _getNOTESpotPrice() public view returns (uint256) {
-        // prettier-ignore
-        (
-            /* address[] memory tokens */,
-            uint256[] memory balances,
-            /* uint256 lastChangeBlock */
-        ) = BALANCER_VAULT.getPoolTokens(NOTE_ETH_POOL_ID);
-
-        // balances[0] = WETH
-        // balances[1] = NOTE
-        // increase NOTE precision to 1e18
-        uint256 noteBal = balances[1] * 1e10;
-
-        // We need to multiply the numerator by 1e18 to preserve enough
-        // precision for the division
-        // NOTEWeight = 0.8
-        // ETHWeight = 0.2
-        // SpotPrice = (ETHBalance / 0.2 * 1e18) / (NOTEBalance / 0.8)
-        // SpotPrice = (ETHBalance * 5 * 1e18) / (NOTEBalance * 1.25)
-        // SpotPrice = (ETHBalance * 5 * 1e18) / (NOTEBalance * 125 / 100)
-
-        return (balances[0] * 5 * 1e18) / ((noteBal * 125) / 100);
-    }
-
-    function _investWETHToBuyNOTE(uint256 wethAmount) internal {
         IAsset[] memory assets = new IAsset[](2);
         assets[0] = IAsset(address(WETH));
         assets[1] = IAsset(address(NOTE));
@@ -209,6 +181,30 @@ contract TreasuryManager is
             NOTE_PURCHASE_LIMIT_PRECISION;
 
         require(noteSpotPrice <= maxPrice, "price impact is too high");
+    }
+
+    function _getNOTESpotPrice() public view returns (uint256) {
+        // prettier-ignore
+        (
+            /* address[] memory tokens */,
+            uint256[] memory balances,
+            /* uint256 lastChangeBlock */
+        ) = BALANCER_VAULT.getPoolTokens(NOTE_ETH_POOL_ID);
+
+        // balances[0] = WETH
+        // balances[1] = NOTE
+        // increase NOTE precision to 1e18
+        uint256 noteBal = balances[1] * 1e10;
+
+        // We need to multiply the numerator by 1e18 to preserve enough
+        // precision for the division
+        // NOTEWeight = 0.8
+        // ETHWeight = 0.2
+        // SpotPrice = (ETHBalance / 0.2 * 1e18) / (NOTEBalance / 0.8)
+        // SpotPrice = (ETHBalance * 5 * 1e18) / (NOTEBalance * 1.25)
+        // SpotPrice = (ETHBalance * 5 * 1e18) / (NOTEBalance * 125 / 100)
+
+        return (balances[0] * 5 * 1e18) / ((noteBal * 125) / 100);
     }
 
     function isValidSignature(bytes calldata data, bytes calldata signature)

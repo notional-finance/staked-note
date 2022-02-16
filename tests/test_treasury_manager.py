@@ -194,3 +194,36 @@ def test_trading_DAI_non_zero_fees():
             order.sign(env.exchangeV3, testAccounts.testManager),
             { "from": testAccounts.WETHWhale }
         )
+
+def test_cancel_order_success():
+    testAccounts = TestAccounts()
+    env = create_environment()
+    env.treasuryManager.setManager(testAccounts.testManager, { "from": env.deployer })
+    env.treasuryManager.approveToken(env.dai.address, 2 ** 255, { "from": env.deployer })
+    env.treasuryManager.setPriceOracle(env.dai.address, '0x6085b0a8f4c7ffa2e8ca578037792d6535d1e29b', {"from": env.deployer})
+    env.treasuryManager.setSlippageLimit(env.dai.address, 0.9e8, {"from": env.deployer})
+    env.dai.transfer(env.treasuryManager.address, 10000e18, { "from": testAccounts.DAIWhale })
+    env.weth.approve(env.exchangeV3.address, 2 ** 255, { "from": testAccounts.WETHWhale })
+    order = Order(env.assetProxy, env.treasuryManager.address, env.dai.address, 4000e18, env.weth.address, 1e18)
+    statusBefore = env.exchangeV3.getOrderInfo(order.getParams())[0]
+    assert statusBefore == 3 # FILLABLE
+    env.treasuryManager.cancelOrder(order.getParams(), {"from": testAccounts.testManager})
+    statusAfter = env.exchangeV3.getOrderInfo(order.getParams())[0]
+    assert statusAfter == 6 # CANCELLED
+
+def test_cancel_order_non_manager():
+    testAccounts = TestAccounts()
+    env = create_environment()
+    env.treasuryManager.setManager(testAccounts.testManager, { "from": env.deployer })
+    env.treasuryManager.approveToken(env.dai.address, 2 ** 255, { "from": env.deployer })
+    env.treasuryManager.setPriceOracle(env.dai.address, '0x6085b0a8f4c7ffa2e8ca578037792d6535d1e29b', {"from": env.deployer})
+    env.treasuryManager.setSlippageLimit(env.dai.address, 0.9e8, {"from": env.deployer})
+    env.dai.transfer(env.treasuryManager.address, 10000e18, { "from": testAccounts.DAIWhale })
+    env.weth.approve(env.exchangeV3.address, 2 ** 255, { "from": testAccounts.WETHWhale })
+    order = Order(env.assetProxy, env.treasuryManager.address, env.dai.address, 4000e18, env.weth.address, 1e18)
+    statusBefore = env.exchangeV3.getOrderInfo(order.getParams())[0]
+    assert statusBefore == 3 # FILLABLE
+    with brownie.reverts():
+        env.treasuryManager.cancelOrder(order.getParams(), {"from": env.deployer})
+    statusAfter = env.exchangeV3.getOrderInfo(order.getParams())[0]
+    assert statusAfter == 3 # FILLABLE

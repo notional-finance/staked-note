@@ -11,6 +11,7 @@ import {IVault, IAsset} from "interfaces/balancer/IVault.sol";
 import {NotionalTreasuryAction} from "interfaces/notional/NotionalTreasuryAction.sol";
 import {WETH9} from "interfaces/WETH9.sol";
 import "interfaces/balancer/IPriceOracle.sol";
+import "interfaces/0x/IExchangeV3.sol";
 
 contract TreasuryManager is
     EIP1271Wallet,
@@ -30,6 +31,7 @@ contract TreasuryManager is
     address public immutable sNOTE;
     bytes32 public immutable NOTE_ETH_POOL_ID;
     address public immutable ASSET_PROXY;
+    IExchangeV3 public immutable EXCHANGE;
 
     address public manager;
     uint256 public notePurchaseLimit;
@@ -38,6 +40,11 @@ contract TreasuryManager is
     event AssetsHarvested(uint16[] currencies, uint256[] amounts);
     event COMPHarvested(address[] ctokens, uint256 amount);
     event NOTEPurchaseLimitUpdated(uint256 purchaseLimit);
+    event OrderCancelled(
+        uint8 orderStatus,
+        bytes32 orderHash,
+        uint256 orderTakerAssetFilledAmount
+    );
 
     /// @dev Restricted methods for the treasury manager
     modifier onlyManager() {
@@ -52,10 +59,14 @@ contract TreasuryManager is
         bytes32 _noteETHPoolId,
         IERC20 _note,
         address _sNOTE,
-        address _assetProxy
+        address _assetProxy,
+        IExchangeV3 _exchange
     ) EIP1271Wallet(_weth) initializer {
         // Balancer will revert if pool is not found
-        (address poolAddress, /* */) = _balancerVault.getPool(_noteETHPoolId);
+        (
+            address poolAddress, /* */
+
+        ) = _balancerVault.getPool(_noteETHPoolId);
 
         NOTIONAL = NotionalTreasuryAction(_notional);
         sNOTE = _sNOTE;
@@ -64,6 +75,7 @@ contract TreasuryManager is
         NOTE_ETH_POOL_ID = _noteETHPoolId;
         ASSET_PROXY = _assetProxy;
         BALANCER_POOL_TOKEN = ERC20(poolAddress);
+        EXCHANGE = _exchange;
     }
 
     function initialize(address _owner, address _manager) external initializer {
@@ -106,8 +118,7 @@ contract TreasuryManager is
     function withdraw(address token, uint256 amount) external onlyOwner {
         if (amount == type(uint256).max)
             amount = IERC20(token).balanceOf(address(this));
-        if (amount > 0)
-            IERC20(token).safeTransfer(msg.sender, amount);
+        if (amount > 0) IERC20(token).safeTransfer(msg.sender, amount);
     }
 
     function wrapToWETH() external onlyManager {
@@ -117,6 +128,21 @@ contract TreasuryManager is
     function setManager(address newManager) external onlyOwner {
         emit ManagementTransferred(manager, newManager);
         manager = newManager;
+    }
+
+    /// @notice cancelOrder needs to be proxied because 0x expects makerAddress to be address(this)
+    /// @param order 0x order object
+    function cancelOrder(IExchangeV3.Order calldata order)
+        external
+        onlyManager
+    {
+        IExchangeV3.OrderInfo memory info = EXCHANGE.getOrderInfo(order);
+        EXCHANGE.cancelOrder(order);
+        emit OrderCancelled(
+            info.orderStatus,
+            info.orderHash,
+            info.orderTakerAssetFilledAmount
+        );
     }
 
     /*** Manager Functionality  ***/
@@ -143,7 +169,11 @@ contract TreasuryManager is
     /// @param wethAmount amount of WETH to transfer into the Balancer pool
     /// @param noteAmount amount of NOTE to transfer into the Balancer pool
     /// @param minBPT slippage parameter to prevent front running
-    function investWETHAndNOTE(uint256 wethAmount, uint256 noteAmount, uint256 minBPT) external onlyManager {
+    function investWETHAndNOTE(
+        uint256 wethAmount,
+        uint256 noteAmount,
+        uint256 minBPT
+    ) external onlyManager {
         IAsset[] memory assets = new IAsset[](2);
         assets[0] = IAsset(address(WETH));
         assets[1] = IAsset(address(NOTE));
@@ -220,9 +250,7 @@ contract TreasuryManager is
         return _isValidSignature(data, signature, manager);
     }
 
-    function _authorizeUpgrade(address /* newImplementation */)
-        internal
-        override
-        onlyOwner
-    {}
+    function _authorizeUpgrade(
+        address /* newImplementation */
+    ) internal override onlyOwner {}
 }

@@ -138,7 +138,7 @@ contract TreasuryManager is
         emit COMPHarvested(ctokens, amountTransferred);
     }
 
-    function investWETHToBuyNOTE(uint256 wethAmount) external onlyManager {
+    function investWETHToBuyNOTE(uint256 wethAmount, uint256 minBPT) external onlyManager {
         IAsset[] memory assets = new IAsset[](2);
         assets[0] = IAsset(address(WETH));
         assets[1] = IAsset(address(NOTE));
@@ -167,7 +167,7 @@ contract TreasuryManager is
                 abi.encode(
                     IVault.JoinKind.EXACT_TOKENS_IN_FOR_BPT_OUT,
                     maxAmountsIn,
-                    0 // Accept however much BPT the pool will give us
+                    minBPT // Accept however much BPT the pool will give us
                 ),
                 false // Don't use internal balances
             )

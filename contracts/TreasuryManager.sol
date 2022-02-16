@@ -139,13 +139,17 @@ contract TreasuryManager is
         emit COMPHarvested(ctokens, amountTransferred);
     }
 
-    function investWETHToBuyNOTE(uint256 wethAmount, uint256 minBPT) external onlyManager {
+    /// @notice Allows treasury manager to invest WETH and NOTE into the Balancer pool
+    /// @param wethAmount amount of WETH to transfer into the Balancer pool
+    /// @param noteAmount amount of NOTE to transfer into the Balancer pool
+    /// @param minBPT slippage parameter to prevent front running
+    function investWETHAndNOTE(uint256 wethAmount, uint256 noteAmount, uint256 minBPT) external onlyManager {
         IAsset[] memory assets = new IAsset[](2);
         assets[0] = IAsset(address(WETH));
         assets[1] = IAsset(address(NOTE));
         uint256[] memory maxAmountsIn = new uint256[](2);
         maxAmountsIn[0] = wethAmount;
-        maxAmountsIn[1] = 0;
+        maxAmountsIn[1] = noteAmount;
 
         IPriceOracle.OracleAverageQuery[]
             memory queries = new IPriceOracle.OracleAverageQuery[](1);
@@ -168,7 +172,7 @@ contract TreasuryManager is
                 abi.encode(
                     IVault.JoinKind.EXACT_TOKENS_IN_FOR_BPT_OUT,
                     maxAmountsIn,
-                    minBPT // Accept however much BPT the pool will give us
+                    minBPT // Apply minBPT to prevent front running
                 ),
                 false // Don't use internal balances
             )

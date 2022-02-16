@@ -63,10 +63,8 @@ contract TreasuryManager is
         IExchangeV3 _exchange
     ) EIP1271Wallet(_weth) initializer {
         // Balancer will revert if pool is not found
-        (
-            address poolAddress, /* */
-
-        ) = _balancerVault.getPool(_noteETHPoolId);
+        // prettier-ignore
+        (address poolAddress, /* */) = _balancerVault.getPool(_noteETHPoolId);
 
         NOTIONAL = NotionalTreasuryAction(_notional);
         sNOTE = _sNOTE;

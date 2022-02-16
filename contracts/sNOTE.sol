@@ -142,6 +142,7 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
     /// @param bptAmount is the amount of BPT to transfer from the msg.sender.
     function mintFromBPT(uint256 bptAmount) external nonReentrant {
         // _mint logic requires that tokens are transferred first
+        if (bptAmount == 0) return;
         BALANCER_POOL_TOKEN.safeTransferFrom(msg.sender, address(this), bptAmount);
         _mint(msg.sender, bptAmount);
     }
@@ -170,7 +171,7 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
     function mintFromWETH(uint256 noteAmount, uint256 wethAmount, uint256 minBPT) external nonReentrant {
         // Transfer the NOTE and WETH balance into sNOTE first
         if (noteAmount > 0) NOTE.safeTransferFrom(msg.sender, address(this), noteAmount);
-        WETH.safeTransferFrom(msg.sender, address(this), wethAmount);
+        if (wethAmount > 0) WETH.safeTransferFrom(msg.sender, address(this), wethAmount);
 
         IAsset[] memory assets = new IAsset[](2);
         assets[0] = IAsset(address(WETH));
@@ -243,7 +244,9 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
 
         // Handles event emission, balance update and total supply update
         _burn(msg.sender, sNOTEAmount);
-        BALANCER_POOL_TOKEN.safeTransfer(msg.sender, bptToRedeem);
+        
+        if (bptToRedeem > 0) 
+            BALANCER_POOL_TOKEN.safeTransfer(msg.sender, bptToRedeem);
     }
 
     /** External View Methods **/

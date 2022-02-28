@@ -54,6 +54,10 @@ class BalancerDeployer:
         )
 
     def deployNotePool(self):
+        if "pool" in self.staking:
+            print("pool address={} id={}".format(self.staking["pool"]["address"], self.staking["pool"]["id"]))
+            return
+
         # NOTE: owner is immutable, need to deploy the proxy first
         txn = self.pool2TokensFactory.create(
             BalancerConfig[self.network]["name"],

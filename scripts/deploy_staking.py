@@ -4,10 +4,6 @@ from scripts.deployers.snote_deployer import SNoteDeployer
 from scripts.deployers.treasury_manager_deployer import TreasuryManagerDeployer
 from scripts.deployers.balancer_deployer import BalancerDeployer
 
-#   def deployBalancer(deployer):
-    #balancer = BalancerDeployer(network.show_active(), deployer)
-    #balancer.deployNotePool()
-
 #def deploySNote(deployer):
 #    snote = SNoteDeployer(network.show_active(), deployer)
 #    snote.deploy()
@@ -22,7 +18,6 @@ def main():
     snote = SNoteDeployer(network.show_active(), deployer)
     snote.deployEmptyProxy()
     balancer.deployNotePool()
-
+    snote.upgradeSNote()
 #    deploySNote(deployer)
 #    deployTreasuryManager(deployer)
-#    deployBalancer(deployer)

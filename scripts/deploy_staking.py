@@ -18,8 +18,10 @@ from scripts.deployers.balancer_deployer import BalancerDeployer
 
 def main():
     deployer = accounts.load(network.show_active().upper() + "_DEPLOYER")
+    balancer = BalancerDeployer(network.show_active(), deployer)
     snote = SNoteDeployer(network.show_active(), deployer)
     snote.deployEmptyProxy()
+    balancer.deployNotePool()
 
 #    deploySNote(deployer)
 #    deployTreasuryManager(deployer)

@@ -75,6 +75,10 @@
         "Router": "0xf1DB1b2C62380Dd170906aA0d0Ea653A1AEdD174"
     },
     "staking": {
+        "pool": {
+            "address": "0xeC60a5FeF79a92c741Cb74FdD6bfC340C0279B01",
+            "id": "0xec60a5fef79a92c741cb74fdd6bfc340c0279b01000200000000000000000051"
+        },
         "sNoteEmptyProxyImpl": "0xea99758724AC0dc1B784bBd5249C9038Ee33B617",
         "sNoteProxy": "0xdaD565eE2b1D939Bd10170D2Eda3f9A0eD814B1b"
     },

@@ -5,6 +5,7 @@ from scripts.deployers.contract_deployer import ContractDeployer
 SNoteConfig = {
     "goerli": {
         "vault": "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
+        "weth": "0xdFCeA9088c8A88A76FF74892C1457C17dfeef9C1",
         "owner": "0x2a956Fe94ff89D8992107c8eD4805c30ff1106ef",
         "coolDownSeconds": 100
     }
@@ -48,7 +49,6 @@ class SNoteDeployer:
         self._save()
         return impl
         
-
     def deployEmptyProxy(self):
         if "sNoteProxy" in self.staking:
             print("sNoteProxy deployed at {}".format(self.staking["sNoteProxy"]))
@@ -70,13 +70,12 @@ class SNoteDeployer:
             SNoteConfig[self.network]["vault"],
             self.config["staking"]["pool"]["id"],
             self.config["note"],
-            self.config["tokens"]["WETH"]["address"]
+            SNoteConfig[self.network]["weth"]
         ])
 
         self.staking["sNoteImpl"] = impl.address
         self._save()
         return impl
-        
 
     def upgradeSNote(self):
         impl = self._deployImpl()

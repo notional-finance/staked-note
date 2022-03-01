@@ -1,19 +1,15 @@
 import json
-from brownie import Contract, Wei
+from brownie import Contract
 
 BalancerConfig = {
     "goerli": {
         "factory": "0xA5bf2ddF098bb0Ef6d120C98217dD6B141c74EE0",
+        "weth": "0xdFCeA9088c8A88A76FF74892C1457C17dfeef9C1",
         "name": "Staked NOTE Weighted Pool",
         "symbol": "sNOTE-BPT",
-        "tokens": [
-            "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", # WETH
-            "0xCFEAead4947f0705A14ec42aC3D44129E1Ef3eD5", # NOTE
-        ],
         "weights": [ 0.2e18, 0.8e18 ],
         "swapFeePercentage": 0.005e18, # 0.5%
-        "oracleEnable": True,
-        "initBalances": [ Wei(0.2e18), Wei(1e8) ]
+        "oracleEnable": True
     }
 }
 
@@ -58,14 +54,19 @@ class BalancerDeployer:
             print("pool address={} id={}".format(self.staking["pool"]["address"], self.staking["pool"]["id"]))
             return
 
+        tokens = [
+            BalancerConfig[self.network]["weth"],
+            self.config["note"]
+        ]
+
+        # NOTE: Balancer requires token addresses to be sorted BAL#102
+        tokens.sort()
+
         # NOTE: owner is immutable, need to deploy the proxy first
         txn = self.pool2TokensFactory.create(
             BalancerConfig[self.network]["name"],
             BalancerConfig[self.network]["symbol"],
-            [
-                self.config["tokens"]["WETH"]["address"],
-                self.config["note"]
-            ],
+            tokens,
             BalancerConfig[self.network]["weights"],
             BalancerConfig[self.network]["swapFeePercentage"],
             BalancerConfig[self.network]["oracleEnable"],

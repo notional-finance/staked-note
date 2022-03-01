@@ -20,6 +20,11 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
     ERC20 public immutable WETH;
     bytes32 public immutable NOTE_ETH_POOL_ID;
 
+    /// @notice Balancer token indexes
+    /// Balancer requires token addresses to be sorted BAL#102
+    uint256 public immutable WETH_INDEX;
+    uint256 public immutable NOTE_INDEX;
+
     /// @notice Maximum shortfall withdraw of 50%
     uint256 public constant MAX_SHORTFALL_WITHDRAW = 50;
     uint256 public constant SHORTFALL_WITHDRAW_COOLDOWN = 7 days;
@@ -37,10 +42,6 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
     /// @notice Mapping between sNOTE holders and their cool down status
     mapping(address => uint256) public accountRedeemWindowBegin;
 
-    /// @notice Determines if the pool tokens are inverted
-    /// Balancer requires token addresses to be sorted BAL#102
-    bool private inverted;
-
     /// @notice Emitted when a cool down begins
     event CoolDownStarted(address indexed account, uint256 redeemWindowBegin, uint256 redeemWindowEnd);
 
@@ -54,29 +55,21 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
     constructor(
         IVault _balancerVault,
         bytes32 _noteETHPoolId,
-        ERC20 _note,
-        ERC20 _weth
+        uint256 _wethIndex,
+        uint256 _noteIndex
     ) initializer { 
         // Validate that the pool exists
         (address poolAddress, /* */) = _balancerVault.getPool(_noteETHPoolId);
         require(poolAddress != address(0));
 
+        WETH_INDEX = _wethIndex;
+        NOTE_INDEX = _noteIndex;
+
         // prettier-ignore
         (address[] memory tokens, /* */, /* */) = _balancerVault.getPoolTokens(_noteETHPoolId);
 
-        // Validate pool tokens and set the token order
-        if (tokens[0] == address(_weth)) {
-            require(tokens[1] == address(_note));
-            inverted = false;
-        } else if (tokens[0] == address(_note)) {
-            require(tokens[1] == address(_weth));
-            inverted = true;
-        } else {
-            revert("invalid pool tokens");
-        }
-
-        WETH = _weth;
-        NOTE = _note;
+        WETH = ERC20(tokens[_wethIndex]);
+        NOTE = ERC20(tokens[_noteIndex]);
         NOTE_ETH_POOL_ID = _noteETHPoolId;
         BALANCER_VAULT = _balancerVault;
         BALANCER_POOL_TOKEN = ERC20(poolAddress);
@@ -127,15 +120,8 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
         uint256 bptExitAmount = requestedWithdraw > maxBPTWithdraw ? maxBPTWithdraw : requestedWithdraw;
 
         IAsset[] memory assets = new IAsset[](2);
-
-        // NOTE: Balancer requires token addresses to be sorted BAL#102
-        if (!inverted) {
-            assets[0] = IAsset(address(WETH));
-            assets[1] = IAsset(address(NOTE));
-        } else {
-            assets[0] = IAsset(address(NOTE));
-            assets[1] = IAsset(address(WETH));
-        }
+        assets[WETH_INDEX] = IAsset(address(WETH));
+        assets[NOTE_INDEX] = IAsset(address(NOTE));
 
         BALANCER_VAULT.exitPool(
             NOTE_ETH_POOL_ID,
@@ -182,18 +168,10 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
         IAsset[] memory assets = new IAsset[](2);
         uint256[] memory maxAmountsIn = new uint256[](2);
 
-        // NOTE: Balancer requires token addresses to be sorted BAL#102
-        if (!inverted) {
-            assets[0] = IAsset(address(0));
-            assets[1] = IAsset(address(NOTE));
-            maxAmountsIn[0] = msg.value;
-            maxAmountsIn[1] = noteAmount;
-        } else {
-            assets[0] = IAsset(address(NOTE));
-            assets[1] = IAsset(address(0));
-            maxAmountsIn[0] = noteAmount;
-            maxAmountsIn[1] = msg.value;
-        }
+        assets[WETH_INDEX] = IAsset(address(0));
+        assets[NOTE_INDEX] = IAsset(address(NOTE));
+        maxAmountsIn[WETH_INDEX] = msg.value;
+        maxAmountsIn[NOTE_INDEX] = noteAmount;
 
         _mintFromAssets(assets, maxAmountsIn, minBPT);
     }
@@ -210,18 +188,10 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
         IAsset[] memory assets = new IAsset[](2);
         uint256[] memory maxAmountsIn = new uint256[](2);
 
-        // NOTE: Balancer requires token addresses to be sorted BAL#102
-        if (!inverted) {
-            assets[0] = IAsset(address(WETH));
-            assets[1] = IAsset(address(NOTE));
-            maxAmountsIn[0] = wethAmount;
-            maxAmountsIn[1] = noteAmount;
-        } else {
-            assets[0] = IAsset(address(NOTE));
-            assets[1] = IAsset(address(WETH));
-            maxAmountsIn[0] = noteAmount;
-            maxAmountsIn[1] = wethAmount;
-        }
+        assets[WETH_INDEX] = IAsset(address(WETH));
+        assets[NOTE_INDEX] = IAsset(address(NOTE));
+        maxAmountsIn[WETH_INDEX] = wethAmount;
+        maxAmountsIn[NOTE_INDEX] = noteAmount;
 
         _mintFromAssets(assets, maxAmountsIn, minBPT);
     }

@@ -26,8 +26,8 @@ def test_upgrade_snote():
     sNOTEImpl = sNOTE.deploy(
         env.balancerVault.address,
         env.poolId,
-        env.note.address,
-        env.weth.address,
+        0,
+        1,
         {"from": env.deployer}
     )
 

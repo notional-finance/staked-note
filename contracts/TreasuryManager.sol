@@ -32,9 +32,15 @@ contract TreasuryManager is
     bytes32 public immutable NOTE_ETH_POOL_ID;
     address public immutable ASSET_PROXY;
     IExchangeV3 public immutable EXCHANGE;
+    uint32 public constant MAXIMUM_COOL_DOWN_PERIOD_SECONDS = 30 days;
 
     address public manager;
     uint256 public notePurchaseLimit;
+
+    /// @notice Number of seconds that need to pass before another investWETHAndNOTE can be called
+    uint32 public coolDownTimeInSeconds;
+
+    uint256 public lastInvestTimestamp;
 
     event ManagementTransferred(address prevManager, address newManager);
     event AssetsHarvested(uint16[] currencies, uint256[] amounts);
@@ -45,6 +51,9 @@ contract TreasuryManager is
         bytes32 orderHash,
         uint256 orderTakerAssetFilledAmount
     );
+
+    /// @notice Emitted when cool down time is updated
+    event InvestmentCoolDownUpdated(uint256 newCoolDownTimeSeconds);
 
     /// @dev Restricted methods for the treasury manager
     modifier onlyManager() {
@@ -76,9 +85,14 @@ contract TreasuryManager is
         EXCHANGE = _exchange;
     }
 
-    function initialize(address _owner, address _manager) external initializer {
+    function initialize(
+        address _owner,
+        address _manager,
+        uint32 _coolDownTimeInSeconds
+    ) external initializer {
         owner = _owner;
         manager = _manager;
+        coolDownTimeInSeconds = _coolDownTimeInSeconds;
         emit OwnershipTransferred(address(0), _owner);
         emit ManagementTransferred(address(0), _manager);
     }
@@ -163,6 +177,13 @@ contract TreasuryManager is
         emit COMPHarvested(ctokens, amountTransferred);
     }
 
+    /// @notice Updates the required cooldown time to invest
+    function setCoolDownTime(uint32 _coolDownTimeInSeconds) external onlyOwner {
+        require(_coolDownTimeInSeconds <= MAXIMUM_COOL_DOWN_PERIOD_SECONDS);
+        coolDownTimeInSeconds = _coolDownTimeInSeconds;
+        emit InvestmentCoolDownUpdated(_coolDownTimeInSeconds);
+    }
+
     /// @notice Allows treasury manager to invest WETH and NOTE into the Balancer pool
     /// @param wethAmount amount of WETH to transfer into the Balancer pool
     /// @param noteAmount amount of NOTE to transfer into the Balancer pool
@@ -172,6 +193,12 @@ contract TreasuryManager is
         uint256 noteAmount,
         uint256 minBPT
     ) external onlyManager {
+        require(
+            block.timestamp > lastInvestTimestamp + coolDownTimeInSeconds,
+            "Investment Cooldown"
+        );
+        lastInvestTimestamp = block.timestamp;
+
         IAsset[] memory assets = new IAsset[](2);
         assets[0] = IAsset(address(WETH));
         assets[1] = IAsset(address(NOTE));

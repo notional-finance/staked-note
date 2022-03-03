@@ -21,6 +21,7 @@ from eth_account.messages import defunct_hash_message
 from hexbytes import HexBytes
 
 ETH_ADDRESS = "0x0000000000000000000000000000000000000000"
+SECONDS_IN_DAY = 86400
 
 chain = Chain()
 
@@ -93,8 +94,8 @@ class Order:
         self.salt = time.time()
         self.makerAssetData = self.encodeAssetData(assetProxy, makerToken)
         self.takerAssetData = self.encodeAssetData(assetProxy, takerToken)
-        self.makerFeeAssetData = "0x"
-        self.takerFeeAssetData = "0x"
+        self.makerFeeAssetData = self.encodeAssetData(assetProxy, makerToken)
+        self.takerFeeAssetData = self.encodeAssetData(assetProxy, takerToken)
 
     def encodeAssetData(self, assetProxy, token):
         return assetProxy.ERC20Token.encode_input(token)
@@ -215,8 +216,8 @@ class Environment:
         sNOTEImpl = sNOTE.deploy(
             self.balancerVault.address,
             self.poolId,
-            self.note.address,
-            self.weth.address,
+            0,
+            1,
             {"from": self.deployer}
         )
 
@@ -275,10 +276,11 @@ class Environment:
             self.poolId,
             EnvironmentConfig["NOTE"],
             self.sNOTEProxy.address,
-            EnvironmentConfig["ERC20AssetProxy"],            
+            EnvironmentConfig["ERC20AssetProxy"],
+            EnvironmentConfig["ExchangeV3"],            
             { "from": self.deployer }
         )
-        initData = treasuryManager.initialize.encode_input(self.deployer, self.deployer)
+        initData = treasuryManager.initialize.encode_input(self.deployer, self.deployer, SECONDS_IN_DAY)
         proxy = nProxy.deploy(treasuryManager.address, initData, {"from": self.deployer})
         return Contract.from_abi("TreasuryManagerProxy", proxy.address, TreasuryManager.abi)
 

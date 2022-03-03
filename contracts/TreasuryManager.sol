@@ -39,8 +39,7 @@ contract TreasuryManager is
 
     /// @notice Number of seconds that need to pass before another investWETHAndNOTE can be called
     uint32 public coolDownTimeInSeconds;
-
-    uint256 public lastInvestTimestamp;
+    uint32 public lastInvestTimestamp;
 
     event ManagementTransferred(address prevManager, address newManager);
     event AssetsHarvested(uint16[] currencies, uint256[] amounts);
@@ -54,6 +53,7 @@ contract TreasuryManager is
 
     /// @notice Emitted when cool down time is updated
     event InvestmentCoolDownUpdated(uint256 newCoolDownTimeSeconds);
+    event AssetsInvested(uint256 wethAmount, uint256 noteAmount);
 
     /// @dev Restricted methods for the treasury manager
     modifier onlyManager() {
@@ -98,8 +98,8 @@ contract TreasuryManager is
     }
 
     function approveToken(address token, uint256 amount) external onlyOwner {
-        IERC20(token).approve(ASSET_PROXY, 0);
-        IERC20(token).approve(ASSET_PROXY, amount);
+        IERC20(token).safeApprove(ASSET_PROXY, 0);
+        IERC20(token).safeApprove(ASSET_PROXY, amount);
     }
 
     function setPriceOracle(address tokenAddress, address oracleAddress)
@@ -193,11 +193,9 @@ contract TreasuryManager is
         uint256 noteAmount,
         uint256 minBPT
     ) external onlyManager {
-        require(
-            block.timestamp > lastInvestTimestamp + coolDownTimeInSeconds,
-            "Investment Cooldown"
-        );
-        lastInvestTimestamp = block.timestamp;
+        uint32 blockTime = _safe32(block.timestamp);
+        require(lastInvestTimestamp + coolDownTimeInSeconds < blockTime, "Investment Cooldown");
+        lastInvestTimestamp = blockTime;
 
         IAsset[] memory assets = new IAsset[](2);
         assets[0] = IAsset(address(WETH));
@@ -241,6 +239,8 @@ contract TreasuryManager is
             NOTE_PURCHASE_LIMIT_PRECISION;
 
         require(noteSpotPrice <= maxPrice, "price impact is too high");
+
+        emit AssetsInvested(wethAmount, noteAmount);
     }
 
     function _getNOTESpotPrice() public view returns (uint256) {
@@ -273,6 +273,11 @@ contract TreasuryManager is
         returns (bytes4)
     {
         return _isValidSignature(data, signature, manager);
+    }
+
+    function _safe32(uint256 x) internal pure returns (uint32) {
+        require (x <= type(uint32).max);
+        return uint32(x);
     }
 
     function _authorizeUpgrade(

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.7.0;
+pragma solidity >0.7.0;
 
 library SafeInt256 {
     int256 private constant _INT256_MIN = type(int256).min;

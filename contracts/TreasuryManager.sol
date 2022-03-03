@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity =0.8.11;
 
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
@@ -11,6 +11,7 @@ import {IVault, IAsset} from "interfaces/balancer/IVault.sol";
 import {NotionalTreasuryAction} from "interfaces/notional/NotionalTreasuryAction.sol";
 import {WETH9} from "interfaces/WETH9.sol";
 import "interfaces/balancer/IPriceOracle.sol";
+import "interfaces/0x/IExchangeV3.sol";
 
 contract TreasuryManager is
     EIP1271Wallet,
@@ -30,15 +31,29 @@ contract TreasuryManager is
     address public immutable sNOTE;
     bytes32 public immutable NOTE_ETH_POOL_ID;
     address public immutable ASSET_PROXY;
+    IExchangeV3 public immutable EXCHANGE;
+    uint32 public constant MAXIMUM_COOL_DOWN_PERIOD_SECONDS = 30 days;
 
     address public manager;
-    uint32 public refundGasPrice;
     uint256 public notePurchaseLimit;
+
+    /// @notice Number of seconds that need to pass before another investWETHAndNOTE can be called
+    uint32 public coolDownTimeInSeconds;
+    uint32 public lastInvestTimestamp;
 
     event ManagementTransferred(address prevManager, address newManager);
     event AssetsHarvested(uint16[] currencies, uint256[] amounts);
     event COMPHarvested(address[] ctokens, uint256 amount);
     event NOTEPurchaseLimitUpdated(uint256 purchaseLimit);
+    event OrderCancelled(
+        uint8 orderStatus,
+        bytes32 orderHash,
+        uint256 orderTakerAssetFilledAmount
+    );
+
+    /// @notice Emitted when cool down time is updated
+    event InvestmentCoolDownUpdated(uint256 newCoolDownTimeSeconds);
+    event AssetsInvested(uint256 wethAmount, uint256 noteAmount);
 
     /// @dev Restricted methods for the treasury manager
     modifier onlyManager() {
@@ -53,11 +68,12 @@ contract TreasuryManager is
         bytes32 _noteETHPoolId,
         IERC20 _note,
         address _sNOTE,
-        address _assetProxy
+        address _assetProxy,
+        IExchangeV3 _exchange
     ) EIP1271Wallet(_weth) initializer {
+        // Balancer will revert if pool is not found
         // prettier-ignore
         (address poolAddress, /* */) = _balancerVault.getPool(_noteETHPoolId);
-        require(poolAddress != address(0));
 
         NOTIONAL = NotionalTreasuryAction(_notional);
         sNOTE = _sNOTE;
@@ -66,23 +82,31 @@ contract TreasuryManager is
         NOTE_ETH_POOL_ID = _noteETHPoolId;
         ASSET_PROXY = _assetProxy;
         BALANCER_POOL_TOKEN = ERC20(poolAddress);
+        EXCHANGE = _exchange;
     }
 
-    function initialize(address _owner, address _manager) external initializer {
+    function initialize(
+        address _owner,
+        address _manager,
+        uint32 _coolDownTimeInSeconds
+    ) external initializer {
         owner = _owner;
         manager = _manager;
+        coolDownTimeInSeconds = _coolDownTimeInSeconds;
         emit OwnershipTransferred(address(0), _owner);
         emit ManagementTransferred(address(0), _manager);
     }
 
     function approveToken(address token, uint256 amount) external onlyOwner {
-        IERC20(token).approve(ASSET_PROXY, amount);
+        IERC20(token).safeApprove(ASSET_PROXY, 0);
+        IERC20(token).safeApprove(ASSET_PROXY, amount);
     }
 
     function setPriceOracle(address tokenAddress, address oracleAddress)
         external
         onlyOwner
     {
+        /// @dev oracleAddress validated inside _setPriceOracle
         _setPriceOracle(tokenAddress, oracleAddress);
     }
 
@@ -90,6 +114,7 @@ contract TreasuryManager is
         external
         onlyOwner
     {
+        /// @dev slippageLimit validated inside _setSlippageLimit
         _setSlippageLimit(tokenAddress, slippageLimit);
     }
 
@@ -105,7 +130,7 @@ contract TreasuryManager is
     function withdraw(address token, uint256 amount) external onlyOwner {
         if (amount == type(uint256).max)
             amount = IERC20(token).balanceOf(address(this));
-        IERC20(token).safeTransfer(owner, amount);
+        if (amount > 0) IERC20(token).safeTransfer(msg.sender, amount);
     }
 
     function wrapToWETH() external onlyManager {
@@ -115,6 +140,21 @@ contract TreasuryManager is
     function setManager(address newManager) external onlyOwner {
         emit ManagementTransferred(manager, newManager);
         manager = newManager;
+    }
+
+    /// @notice cancelOrder needs to be proxied because 0x expects makerAddress to be address(this)
+    /// @param order 0x order object
+    function cancelOrder(IExchangeV3.Order calldata order)
+        external
+        onlyManager
+    {
+        IExchangeV3.OrderInfo memory info = EXCHANGE.getOrderInfo(order);
+        EXCHANGE.cancelOrder(order);
+        emit OrderCancelled(
+            info.orderStatus,
+            info.orderHash,
+            info.orderTakerAssetFilledAmount
+        );
     }
 
     /*** Manager Functionality  ***/
@@ -137,8 +177,70 @@ contract TreasuryManager is
         emit COMPHarvested(ctokens, amountTransferred);
     }
 
-    function investWETHToBuyNOTE(uint256 wethAmount) external onlyManager {
-        _investWETHToBuyNOTE(wethAmount);
+    /// @notice Updates the required cooldown time to invest
+    function setCoolDownTime(uint32 _coolDownTimeInSeconds) external onlyOwner {
+        require(_coolDownTimeInSeconds <= MAXIMUM_COOL_DOWN_PERIOD_SECONDS);
+        coolDownTimeInSeconds = _coolDownTimeInSeconds;
+        emit InvestmentCoolDownUpdated(_coolDownTimeInSeconds);
+    }
+
+    /// @notice Allows treasury manager to invest WETH and NOTE into the Balancer pool
+    /// @param wethAmount amount of WETH to transfer into the Balancer pool
+    /// @param noteAmount amount of NOTE to transfer into the Balancer pool
+    /// @param minBPT slippage parameter to prevent front running
+    function investWETHAndNOTE(
+        uint256 wethAmount,
+        uint256 noteAmount,
+        uint256 minBPT
+    ) external onlyManager {
+        uint32 blockTime = _safe32(block.timestamp);
+        require(lastInvestTimestamp + coolDownTimeInSeconds < blockTime, "Investment Cooldown");
+        lastInvestTimestamp = blockTime;
+
+        IAsset[] memory assets = new IAsset[](2);
+        assets[0] = IAsset(address(WETH));
+        assets[1] = IAsset(address(NOTE));
+        uint256[] memory maxAmountsIn = new uint256[](2);
+        maxAmountsIn[0] = wethAmount;
+        maxAmountsIn[1] = noteAmount;
+
+        IPriceOracle.OracleAverageQuery[]
+            memory queries = new IPriceOracle.OracleAverageQuery[](1);
+
+        queries[0].variable = IPriceOracle.Variable.PAIR_PRICE;
+        queries[0].secs = 3600; // last hour
+        queries[0].ago = 0; // now
+
+        // Gets the balancer time weighted average price denominated in ETH
+        uint256 noteOraclePrice = IPriceOracle(address(BALANCER_POOL_TOKEN))
+            .getTimeWeightedAverage(queries)[0];
+
+        BALANCER_VAULT.joinPool(
+            NOTE_ETH_POOL_ID,
+            address(this),
+            sNOTE, // sNOTE will receive the BPT
+            IVault.JoinPoolRequest(
+                assets,
+                maxAmountsIn,
+                abi.encode(
+                    IVault.JoinKind.EXACT_TOKENS_IN_FOR_BPT_OUT,
+                    maxAmountsIn,
+                    minBPT // Apply minBPT to prevent front running
+                ),
+                false // Don't use internal balances
+            )
+        );
+
+        uint256 noteSpotPrice = _getNOTESpotPrice();
+
+        // Calculate the max spot price based on the purchase limit
+        uint256 maxPrice = noteOraclePrice +
+            (noteOraclePrice * notePurchaseLimit) /
+            NOTE_PURCHASE_LIMIT_PRECISION;
+
+        require(noteSpotPrice <= maxPrice, "price impact is too high");
+
+        emit AssetsInvested(wethAmount, noteAmount);
     }
 
     function _getNOTESpotPrice() public view returns (uint256) {
@@ -165,51 +267,6 @@ contract TreasuryManager is
         return (balances[0] * 5 * 1e18) / ((noteBal * 125) / 100);
     }
 
-    function _investWETHToBuyNOTE(uint256 wethAmount) internal {
-        IAsset[] memory assets = new IAsset[](2);
-        assets[0] = IAsset(address(WETH));
-        assets[1] = IAsset(address(NOTE));
-        uint256[] memory maxAmountsIn = new uint256[](2);
-        maxAmountsIn[0] = wethAmount;
-        maxAmountsIn[1] = 0;
-
-        IPriceOracle.OracleAverageQuery[]
-            memory queries = new IPriceOracle.OracleAverageQuery[](1);
-
-        queries[0].variable = IPriceOracle.Variable.PAIR_PRICE;
-        queries[0].secs = 3600; // last hour
-        queries[0].ago = 0; // now
-
-        // Gets the balancer time weighted average price denominated in ETH
-        uint256 noteOraclePrice = IPriceOracle(address(BALANCER_POOL_TOKEN))
-            .getTimeWeightedAverage(queries)[0];
-
-        BALANCER_VAULT.joinPool(
-            NOTE_ETH_POOL_ID,
-            address(this),
-            sNOTE, // sNOTE will receive the BPT
-            IVault.JoinPoolRequest(
-                assets,
-                maxAmountsIn,
-                abi.encode(
-                    IVault.JoinKind.EXACT_TOKENS_IN_FOR_BPT_OUT,
-                    maxAmountsIn,
-                    0 // Accept however much BPT the pool will give us
-                ),
-                false // Don't use internal balances
-            )
-        );
-
-        uint256 noteSpotPrice = _getNOTESpotPrice();
-
-        // Calculate the max spot price based on the purchase limit
-        uint256 maxPrice = noteOraclePrice +
-            (noteOraclePrice * notePurchaseLimit) /
-            NOTE_PURCHASE_LIMIT_PRECISION;
-
-        require(noteSpotPrice <= maxPrice, "price impact is too high");
-    }
-
     function isValidSignature(bytes calldata data, bytes calldata signature)
         external
         view
@@ -218,9 +275,12 @@ contract TreasuryManager is
         return _isValidSignature(data, signature, manager);
     }
 
-    function _authorizeUpgrade(address newImplementation)
-        internal
-        override
-        onlyOwner
-    {}
+    function _safe32(uint256 x) internal pure returns (uint32) {
+        require (x <= type(uint32).max);
+        return uint32(x);
+    }
+
+    function _authorizeUpgrade(
+        address /* newImplementation */
+    ) internal override onlyOwner {}
 }

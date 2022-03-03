@@ -35,6 +35,9 @@ contract TreasuryManager is
     uint32 public constant MAXIMUM_COOL_DOWN_PERIOD_SECONDS = 30 days;
 
     address public manager;
+
+    /// @notice This limit determines the maximum price impact (% increase from current oracle price)
+    /// from joining the BPT pool with WETH
     uint256 public notePurchaseLimit;
 
     /// @notice Number of seconds that need to pass before another investWETHAndNOTE can be called

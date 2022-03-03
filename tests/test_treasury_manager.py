@@ -76,13 +76,61 @@ def test_trading_DAI_bad_price():
         )
 
 def test_trading_DAI_bad_signature():
-    pass
+    testAccounts = TestAccounts()
+    env = create_environment()
+    env.treasuryManager.setManager(testAccounts.testManager, { "from": env.deployer })
+    env.treasuryManager.approveToken(env.dai.address, 2 ** 255, { "from": env.deployer })
+    env.treasuryManager.setPriceOracle(env.dai.address, '0x6085b0a8f4c7ffa2e8ca578037792d6535d1e29b', {"from": env.deployer})
+    env.treasuryManager.setSlippageLimit(env.dai.address, 0.9e8, {"from": env.deployer})
+    env.dai.transfer(env.treasuryManager.address, 10000e18, { "from": testAccounts.DAIWhale })
+    env.weth.approve(env.exchangeV3.address, 2 ** 255, { "from": testAccounts.WETHWhale })
+    order = Order(env.assetProxy, env.treasuryManager.address, env.dai.address, 2000e18, env.weth.address, 1e18)
+    signature = order.sign(env.exchangeV3, testAccounts.testManager)
+    newSig = signature[:5] + "2" + signature[6:]
+    with brownie.reverts():
+        env.exchangeV3.fillOrder(
+            order.getParams(), 
+            order.takerAssetAmount, 
+            newSig,
+            { "from": testAccounts.WETHWhale }
+        )
 
 def test_trading_DAI_bad_taker_token():
-    pass
+    testAccounts = TestAccounts()
+    env = create_environment()
+    env.treasuryManager.setManager(testAccounts.testManager, { "from": env.deployer })
+    env.treasuryManager.approveToken(env.dai.address, 2 ** 255, { "from": env.deployer })
+    env.treasuryManager.setPriceOracle(env.dai.address, '0x6085b0a8f4c7ffa2e8ca578037792d6535d1e29b', {"from": env.deployer})
+    env.treasuryManager.setSlippageLimit(env.dai.address, 0.9e8, {"from": env.deployer})
+    env.dai.transfer(env.treasuryManager.address, 10000e18, { "from": testAccounts.DAIWhale })
+    env.usdc.approve(env.exchangeV3.address, 2 ** 255, { "from": testAccounts.USDCWhale })
+    order = Order(env.assetProxy, env.treasuryManager.address, env.dai.address, 2000e18, env.usdc.address, 2000e6)
+    with brownie.reverts():
+        env.exchangeV3.fillOrder(
+            order.getParams(), 
+            order.takerAssetAmount, 
+            order.sign(env.exchangeV3, testAccounts.testManager),
+            { "from": testAccounts.USDCWhale }
+        )
 
 def test_trading_DAI_bad_fee_recipient():
-    pass
+    testAccounts = TestAccounts()
+    env = create_environment()
+    env.treasuryManager.setManager(testAccounts.testManager, { "from": env.deployer })
+    env.treasuryManager.approveToken(env.dai.address, 2 ** 255, { "from": env.deployer })
+    env.treasuryManager.setPriceOracle(env.dai.address, '0x6085b0a8f4c7ffa2e8ca578037792d6535d1e29b', {"from": env.deployer})
+    env.treasuryManager.setSlippageLimit(env.dai.address, 0.9e8, {"from": env.deployer})
+    env.dai.transfer(env.treasuryManager.address, 10000e18, { "from": testAccounts.DAIWhale })
+    env.weth.approve(env.exchangeV3.address, 2 ** 255, { "from": testAccounts.WETHWhale })
+    order = Order(env.assetProxy, env.treasuryManager.address, env.dai.address, 2000e18, env.weth.address, 1e18)
+    order.feeRecipientAddress = env.deployer.address
+    with brownie.reverts():
+        env.exchangeV3.fillOrder(
+            order.getParams(), 
+            order.takerAssetAmount, 
+            order.sign(env.exchangeV3, testAccounts.testManager),
+            { "from": testAccounts.WETHWhale }
+        )
 
 def test_trading_DAI_bad_sender():
     testAccounts = TestAccounts()
@@ -149,6 +197,67 @@ def test_trading_DAI_slippage_limit_not_defined():
     env.dai.transfer(env.treasuryManager.address, 10000e18, { "from": testAccounts.DAIWhale })
     env.weth.approve(env.exchangeV3.address, 2 ** 255, { "from": testAccounts.WETHWhale })
     order = Order(env.assetProxy, env.treasuryManager.address, env.dai.address, 2000e18, env.weth.address, 1e18)
+    with brownie.reverts():
+        env.exchangeV3.fillOrder(
+            order.getParams(), 
+            order.takerAssetAmount, 
+            order.sign(env.exchangeV3, testAccounts.testManager),
+            { "from": testAccounts.WETHWhale }
+        )
+
+def test_trading_WETH():
+    testAccounts = TestAccounts()
+    env = create_environment()
+    env.treasuryManager.setManager(testAccounts.testManager, { "from": env.deployer })
+    env.treasuryManager.approveToken(env.dai.address, 2 ** 255, { "from": env.deployer })
+    env.treasuryManager.setPriceOracle(env.dai.address, '0x6085b0a8f4c7ffa2e8ca578037792d6535d1e29b', {"from": env.deployer})
+    env.treasuryManager.setSlippageLimit(env.dai.address, 0.9e8, {"from": env.deployer})
+    env.dai.transfer(env.treasuryManager.address, 10000e18, { "from": testAccounts.DAIWhale })
+    env.weth.approve(env.exchangeV3.address, 2 ** 255, { "from": testAccounts.WETHWhale })
+    order = Order(env.assetProxy, env.treasuryManager.address, env.weth.address, 1e18, env.weth.address, 1e18)
+    # WETH trading is not allowed
+    with brownie.reverts():
+        env.exchangeV3.fillOrder(
+            order.getParams(), 
+            order.takerAssetAmount, 
+            order.sign(env.exchangeV3, testAccounts.testManager),
+            { "from": testAccounts.WETHWhale }
+        )
+
+def test_trading_WBTC_good_price():
+    testAccounts = TestAccounts()
+    env = create_environment()
+    env.treasuryManager.setManager(testAccounts.testManager, { "from": env.deployer })
+    env.treasuryManager.approveToken(env.wbtc.address, 2 ** 255, { "from": env.deployer })
+    env.treasuryManager.setPriceOracle(env.wbtc.address, '0x10aae34011c256a9e63ab5ac50154c2539c0f51d', {"from": env.deployer})
+    env.treasuryManager.setSlippageLimit(env.wbtc.address, 0.9e8, {"from": env.deployer})
+    env.wbtc.transfer(env.treasuryManager.address, 1e8, { "from": testAccounts.WBTCWhale })
+    env.weth.approve(env.exchangeV3.address, 2 ** 255, { "from": testAccounts.WETHWhale })
+    order = Order(env.assetProxy, env.treasuryManager.address, env.wbtc.address, 1e8, env.weth.address, 12.3e18)
+    WBTCBefore = env.wbtc.balanceOf(env.treasuryManager.address)
+    ETHBefore = env.weth.balanceOf(testAccounts.WETHWhale)
+    env.exchangeV3.fillOrder(
+        order.getParams(), 
+        order.takerAssetAmount, 
+        order.sign(env.exchangeV3, testAccounts.testManager),
+        { "from": testAccounts.WETHWhale }
+    )
+    WBTCAfter = env.wbtc.balanceOf(env.treasuryManager.address)
+    ETHAfter = env.weth.balanceOf(testAccounts.WETHWhale)
+    assert WBTCBefore - WBTCAfter == 1e8
+    assert ETHBefore - ETHAfter == 12.3e18
+
+
+def test_trading_WBTC_bad_price():
+    testAccounts = TestAccounts()
+    env = create_environment()
+    env.treasuryManager.setManager(testAccounts.testManager, { "from": env.deployer })
+    env.treasuryManager.approveToken(env.wbtc.address, 2 ** 255, { "from": env.deployer })
+    env.treasuryManager.setPriceOracle(env.wbtc.address, '0x10aae34011c256a9e63ab5ac50154c2539c0f51d', {"from": env.deployer})
+    env.treasuryManager.setSlippageLimit(env.wbtc.address, 0.9e8, {"from": env.deployer})
+    env.wbtc.transfer(env.treasuryManager.address, 1e8, { "from": testAccounts.WBTCWhale })
+    env.weth.approve(env.exchangeV3.address, 2 ** 255, { "from": testAccounts.WETHWhale })
+    order = Order(env.assetProxy, env.treasuryManager.address, env.wbtc.address, 1.3e8, env.weth.address, 12.3e18)
     with brownie.reverts():
         env.exchangeV3.fillOrder(
             order.getParams(), 

@@ -65,12 +65,23 @@ class SNoteDeployer:
             print("sNoteImpl deployed at {}".format(self.staking["sNoteImpl"]))
             return Contract.from_abi("sNoteImpl", self.staking["sNoteImpl"], sNOTE.abi)
 
+        tokens = [
+            SNoteConfig[self.network]["weth"],
+            self.config["note"]
+        ]
+
+        # NOTE: Balancer requires token addresses to be sorted BAL#102
+        tokens.sort()
+
+        wethIndex = 0 if tokens[0] == SNoteConfig[self.network]["weth"] else 1
+        noteIndex = 0 if tokens[0] == self.config["note"] else 1
+
         deployer = ContractDeployer(self.deployer)
         impl = deployer.deploy(sNOTE, [
             SNoteConfig[self.network]["vault"],
             self.config["staking"]["pool"]["id"],
-            self.config["note"],
-            SNoteConfig[self.network]["weth"]
+            wethIndex,
+            noteIndex
         ])
 
         self.staking["sNoteImpl"] = impl.address
@@ -86,8 +97,15 @@ class SNoteDeployer:
             return
 
         print("Upgrading sNote to {}".format(impl.address))
+
+        # Upgrade only, no initialization
+        if proxy.getImplementation() != self.staking["sNoteEmptyImpl"]:
+            proxy.upgradeTo(impl.address, {"from": self.deployer})
+            return
+
+        # Upgrade and initialize
         initializeCallData = impl.initialize.encode_input(
             SNoteConfig[self.network]['owner'],
             SNoteConfig[self.network]['coolDownSeconds']
         )
-        proxy.upgradeToAndCall(impl.address, initializeCallData, {'from': self.deployer})
+        proxy.upgradeToAndCall(impl.address, initializeCallData, {"from": self.deployer})

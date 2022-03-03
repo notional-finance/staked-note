@@ -10,6 +10,7 @@ TreasuryManagerConfig = {
         "exchange": "0xB441EeD44B2B342972b173109DAFd2bdAd3260a5"
     }
 }
+SECONDS_IN_DAY = 86400
 
 class TreasuryManagerDeployer:
     def __init__(self, network, deployer, config=None, persist=True) -> None:
@@ -56,13 +57,20 @@ class TreasuryManagerDeployer:
         return impl
 
     def deploy(self):
-        if "treasuryManager" in self.staking:
-            print("treasuryManager deployed at {}".format(self.staking["treasuryManager"]))
-            return
-
         impl = self._deployTreasuryManagerImpl()
 
-        initData = impl.initialize.encode_input(self.deployer, self.deployer)
+        if "treasuryManager" in self.staking:
+            print("treasuryManager deployed at {}".format(self.staking["treasuryManager"]))
+
+            proxy = Contract.from_abi("treasuryManagerProxy", self.staking["treasuryManager"], nProxy.abi)
+            current = proxy.getImplementation()
+
+            if current != impl.address:
+                print("Upgrading treasury manager from {} to {}".format(current, impl.address))
+                impl.upgradeTo(impl.address, {"from": self.deployer})
+            return
+
+        initData = impl.initialize.encode_input(self.deployer, self.deployer, SECONDS_IN_DAY)
         deployer = ContractDeployer(self.deployer)
         proxy = deployer.deploy(nProxy, [impl.address, initData])
         self.staking["treasuryManager"] = proxy.address

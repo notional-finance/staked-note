@@ -7,11 +7,11 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {BoringOwnable} from "./utils/BoringOwnable.sol";
 import {EIP1271Wallet} from "./utils/EIP1271Wallet.sol";
-import {IVault, IAsset} from "interfaces/balancer/IVault.sol";
-import {NotionalTreasuryAction} from "interfaces/notional/NotionalTreasuryAction.sol";
-import {WETH9} from "interfaces/WETH9.sol";
-import "interfaces/balancer/IPriceOracle.sol";
-import "interfaces/0x/IExchangeV3.sol";
+import {IVault, IAsset} from "../interfaces/balancer/IVault.sol";
+import {NotionalTreasuryAction} from "../interfaces/notional/NotionalTreasuryAction.sol";
+import {WETH9} from "../interfaces/WETH9.sol";
+import "../interfaces/balancer/IPriceOracle.sol";
+import "../interfaces/0x/IExchangeV3.sol";
 
 contract TreasuryManager is
     EIP1271Wallet,

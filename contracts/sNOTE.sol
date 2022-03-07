@@ -7,9 +7,9 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin-upgradeable/contracts/token/ERC20/extensions/ERC20VotesUpgradeable.sol";
-import {IVault, IAsset} from "interfaces/balancer/IVault.sol";
-import "interfaces/balancer/IWeightedPool.sol";
-import "interfaces/balancer/IPriceOracle.sol";
+import {IVault, IAsset} from "../interfaces/balancer/IVault.sol";
+import "../interfaces/balancer/IWeightedPool.sol";
+import "../interfaces/balancer/IPriceOracle.sol";
 
 contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, ReentrancyGuard {
     using SafeERC20 for ERC20;
@@ -199,7 +199,7 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
     function _mintFromAssets(IAsset[] memory assets, uint256[] memory maxAmountsIn, uint256 minBPT) internal {
         uint256 bptBefore = BALANCER_POOL_TOKEN.balanceOf(address(this));
         // Set msgValue when joining via ETH
-        uint256 msgValue = assets[0] == IAsset(address(0)) ? maxAmountsIn[0] : 0;
+        uint256 msgValue = assets[WETH_INDEX] == IAsset(address(0)) ? maxAmountsIn[WETH_INDEX] : 0;
 
         BALANCER_VAULT.joinPool{value: msgValue}(
             NOTE_ETH_POOL_ID,

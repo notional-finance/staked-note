@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity =0.8.11;
 
-import "interfaces/chainlink/AggregatorV2V3Interface.sol";
+import "../../interfaces/chainlink/AggregatorV2V3Interface.sol";
 
 contract ChainlinkAdapter is AggregatorV2V3Interface {
     uint8 public override constant decimals = 18;

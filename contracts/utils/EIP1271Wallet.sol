@@ -4,8 +4,8 @@ pragma abicoder v2;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import {WETH9} from "interfaces/WETH9.sol";
-import {AggregatorV2V3Interface} from "interfaces/chainlink/AggregatorV2V3Interface.sol";
+import {WETH9} from "../../interfaces/WETH9.sol";
+import {AggregatorV2V3Interface} from "../../interfaces/chainlink/AggregatorV2V3Interface.sol";
 
 contract EIP1271Wallet {
     // 0x order encoding is implemented in _encodeEIP1271OrderWithHash

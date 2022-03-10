@@ -210,7 +210,7 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
         BALANCER_VAULT.exitPool(
             NOTE_ETH_POOL_ID,
             address(this),
-            payable(msg.sender), // Owner will receive the NOTE and WETH
+            payable(msg.sender), // Owner will receive the underyling assets
             IVault.ExitPoolRequest(
                 assets,
                 // Accept whatever NOTE/WETH we will receive here, since these

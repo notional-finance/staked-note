@@ -123,23 +123,7 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
         assets[WETH_INDEX] = IAsset(address(WETH));
         assets[NOTE_INDEX] = IAsset(address(NOTE));
 
-        BALANCER_VAULT.exitPool(
-            NOTE_ETH_POOL_ID,
-            address(this),
-            payable(msg.sender), // Owner will receive the NOTE and WETH
-            IVault.ExitPoolRequest(
-                assets,
-                // Accept whatever NOTE/WETH we will receive here, since these
-                // withdraws will be in a timelock it will be difficult to determine
-                // how the pool will be constituted at the time of withdraw
-                new uint256[](2),
-                abi.encode(
-                    IVault.ExitKind.EXACT_BPT_IN_FOR_TOKENS_OUT,
-                    bptExitAmount
-                ),
-                false // Don't use internal balances
-            )
-        );
+        _exitPool(assets, bptExitAmount);
     }
 
     /// @notice Allows the DAO to set the swap fee on the BPT
@@ -222,6 +206,26 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
         _mint(msg.sender, bptAfter - bptBefore);
     }
 
+    function _exitPool(IAsset[] memory assets, uint256 bptExitAmount) internal {
+        BALANCER_VAULT.exitPool(
+            NOTE_ETH_POOL_ID,
+            address(this),
+            payable(msg.sender), // Owner will receive the NOTE and WETH
+            IVault.ExitPoolRequest(
+                assets,
+                // Accept whatever NOTE/WETH we will receive here, since these
+                // withdraws will be in a timelock it will be difficult to determine
+                // how the pool will be constituted at the time of withdraw
+                new uint256[](2),
+                abi.encode(
+                    IVault.ExitKind.EXACT_BPT_IN_FOR_TOKENS_OUT,
+                    bptExitAmount
+                ),
+                false // Don't use internal balances
+            )
+        );
+    }
+
     /// @notice Begins a cool down period for the sender, this is required to redeem tokens
     function startCoolDown() external {
         // Cannot start a cool down if there is already one in effect
@@ -258,8 +262,13 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
         // Handles event emission, balance update and total supply update
         _burn(msg.sender, sNOTEAmount);
         
-        if (bptToRedeem > 0) 
-            BALANCER_POOL_TOKEN.safeTransfer(msg.sender, bptToRedeem);
+        if (bptToRedeem > 0)
+        {
+            IAsset[] memory assets = new IAsset[](2);
+            assets[WETH_INDEX] = IAsset(address(0));
+            assets[NOTE_INDEX] = IAsset(address(NOTE));
+            _exitPool(assets, bptToRedeem);
+        }
     }
 
     /** External View Methods **/

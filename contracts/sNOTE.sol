@@ -11,7 +11,12 @@ import {IVault, IAsset} from "../interfaces/balancer/IVault.sol";
 import "../interfaces/balancer/IWeightedPool.sol";
 import "../interfaces/balancer/IPriceOracle.sol";
 
-contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, ReentrancyGuard {
+contract sNOTE is
+    ERC20VotesUpgradeable,
+    BoringOwnable,
+    UUPSUpgradeable,
+    ReentrancyGuard
+{
     using SafeERC20 for ERC20;
 
     IVault public immutable BALANCER_VAULT;
@@ -35,7 +40,7 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
 
     /// @notice Number of seconds that need to pass before sNOTE can be redeemed
     uint32 public coolDownTimeInSeconds;
-    
+
     /// @notice Timestamp of the last time a shortfall was withdrawn
     uint32 public lastShortfallWithdrawTime;
 
@@ -43,7 +48,11 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
     mapping(address => uint256) public accountRedeemWindowBegin;
 
     /// @notice Emitted when a cool down begins
-    event CoolDownStarted(address indexed account, uint256 redeemWindowBegin, uint256 redeemWindowEnd);
+    event CoolDownStarted(
+        address indexed account,
+        uint256 redeemWindowBegin,
+        uint256 redeemWindowEnd
+    );
 
     /// @notice Emitted when a cool down ends
     event CoolDownEnded(address indexed account);
@@ -57,9 +66,12 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
         bytes32 _noteETHPoolId,
         uint256 _wethIndex,
         uint256 _noteIndex
-    ) initializer { 
+    ) initializer {
         // Validate that the pool exists
-        (address poolAddress, /* */) = _balancerVault.getPool(_noteETHPoolId);
+        (
+            address poolAddress, /* */
+
+        ) = _balancerVault.getPool(_noteETHPoolId);
         require(poolAddress != address(0));
 
         WETH_INDEX = _wethIndex;
@@ -76,10 +88,10 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
     }
 
     /// @notice Initializes sNOTE ERC20 metadata and owner
-    function initialize(
-        address _owner,
-        uint32 _coolDownTimeInSeconds
-    ) external initializer {
+    function initialize(address _owner, uint32 _coolDownTimeInSeconds)
+        external
+        initializer
+    {
         string memory _name = "Staked NOTE";
         string memory _symbol = "sNOTE";
         __ERC20_init(_name, _symbol);
@@ -96,7 +108,9 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
     /** Governance Methods **/
 
     /// @notice Authorizes the DAO to upgrade this contract
-    function _authorizeUpgrade(address /* newImplementation */) internal override onlyOwner {}
+    function _authorizeUpgrade(
+        address /* newImplementation */
+    ) internal override onlyOwner {}
 
     /// @notice Updates the required cooldown time to redeem
     function setCoolDownTime(uint32 _coolDownTimeInSeconds) external onlyOwner {
@@ -106,10 +120,17 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
     }
 
     /// @notice Allows the DAO to extract up to 50% of the BPT tokens during a collateral shortfall event
-    function extractTokensForCollateralShortfall(uint256 requestedWithdraw) external nonReentrant onlyOwner {
+    function extractTokensForCollateralShortfall(uint256 requestedWithdraw)
+        external
+        nonReentrant
+        onlyOwner
+    {
         // Check that the last shortfall withdraw time was not recent
         uint32 blockTime = _safe32(block.timestamp);
-        require(lastShortfallWithdrawTime + SHORTFALL_WITHDRAW_COOLDOWN < blockTime, "Shortfall Cooldown");
+        require(
+            lastShortfallWithdrawTime + SHORTFALL_WITHDRAW_COOLDOWN < blockTime,
+            "Shortfall Cooldown"
+        );
         lastShortfallWithdrawTime = blockTime;
 
         uint256 bptBalance = BALANCER_POOL_TOKEN.balanceOf(address(this));
@@ -117,18 +138,28 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
         // Do not allow a withdraw of more than the MAX_SHORTFALL_WITHDRAW percentage. Specifically don't
         // revert here since there may be a delay between when governance issues the token amount and when
         // the withdraw actually occurs.
-        uint256 bptExitAmount = requestedWithdraw > maxBPTWithdraw ? maxBPTWithdraw : requestedWithdraw;
+        uint256 bptExitAmount = requestedWithdraw > maxBPTWithdraw
+            ? maxBPTWithdraw
+            : requestedWithdraw;
 
         IAsset[] memory assets = new IAsset[](2);
         assets[WETH_INDEX] = IAsset(address(WETH));
         assets[NOTE_INDEX] = IAsset(address(NOTE));
 
-        _exitPool(assets, bptExitAmount);
+        // Accept whatever NOTE/WETH we will receive here, since these
+        // withdraws will be in a timelock it will be difficult to determine
+        // how the pool will be constituted at the time of withdraw
+        _exitPool(assets, new uint256[](2), bptExitAmount);
     }
 
     /// @notice Allows the DAO to set the swap fee on the BPT
-    function setSwapFeePercentage(uint256 swapFeePercentage) external onlyOwner {
-        IWeightedPool(address(BALANCER_POOL_TOKEN)).setSwapFeePercentage(swapFeePercentage);
+    function setSwapFeePercentage(uint256 swapFeePercentage)
+        external
+        onlyOwner
+    {
+        IWeightedPool(address(BALANCER_POOL_TOKEN)).setSwapFeePercentage(
+            swapFeePercentage
+        );
     }
 
     /** User Methods **/
@@ -138,16 +169,25 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
     function mintFromBPT(uint256 bptAmount) external nonReentrant {
         // _mint logic requires that tokens are transferred first
         if (bptAmount == 0) return;
-        BALANCER_POOL_TOKEN.safeTransferFrom(msg.sender, address(this), bptAmount);
+        BALANCER_POOL_TOKEN.safeTransferFrom(
+            msg.sender,
+            address(this),
+            bptAmount
+        );
         _mint(msg.sender, bptAmount);
     }
 
     /// @notice Mints sNOTE from some amount of NOTE and ETH
     /// @param noteAmount amount of NOTE to transfer into the sNOTE contract
     /// @param minBPT slippage parameter to prevent front running
-    function mintFromETH(uint256 noteAmount, uint256 minBPT) payable external nonReentrant {
+    function mintFromETH(uint256 noteAmount, uint256 minBPT)
+        external
+        payable
+        nonReentrant
+    {
         // Transfer the NOTE balance into sNOTE first
-        if (noteAmount > 0) NOTE.safeTransferFrom(msg.sender, address(this), noteAmount);
+        if (noteAmount > 0)
+            NOTE.safeTransferFrom(msg.sender, address(this), noteAmount);
 
         IAsset[] memory assets = new IAsset[](2);
         uint256[] memory maxAmountsIn = new uint256[](2);
@@ -164,10 +204,16 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
     /// @param noteAmount amount of NOTE to transfer into the sNOTE contract
     /// @param wethAmount amount of WETH to transfer into the sNOTE contract
     /// @param minBPT slippage parameter to prevent front running
-    function mintFromWETH(uint256 noteAmount, uint256 wethAmount, uint256 minBPT) external nonReentrant {
+    function mintFromWETH(
+        uint256 noteAmount,
+        uint256 wethAmount,
+        uint256 minBPT
+    ) external nonReentrant {
         // Transfer the NOTE and WETH balance into sNOTE first
-        if (noteAmount > 0) NOTE.safeTransferFrom(msg.sender, address(this), noteAmount);
-        if (wethAmount > 0) WETH.safeTransferFrom(msg.sender, address(this), wethAmount);
+        if (noteAmount > 0)
+            NOTE.safeTransferFrom(msg.sender, address(this), noteAmount);
+        if (wethAmount > 0)
+            WETH.safeTransferFrom(msg.sender, address(this), wethAmount);
 
         IAsset[] memory assets = new IAsset[](2);
         uint256[] memory maxAmountsIn = new uint256[](2);
@@ -180,10 +226,16 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
         _mintFromAssets(assets, maxAmountsIn, minBPT);
     }
 
-    function _mintFromAssets(IAsset[] memory assets, uint256[] memory maxAmountsIn, uint256 minBPT) internal {
+    function _mintFromAssets(
+        IAsset[] memory assets,
+        uint256[] memory maxAmountsIn,
+        uint256 minBPT
+    ) internal {
         uint256 bptBefore = BALANCER_POOL_TOKEN.balanceOf(address(this));
         // Set msgValue when joining via ETH
-        uint256 msgValue = assets[WETH_INDEX] == IAsset(address(0)) ? maxAmountsIn[WETH_INDEX] : 0;
+        uint256 msgValue = assets[WETH_INDEX] == IAsset(address(0))
+            ? maxAmountsIn[WETH_INDEX]
+            : 0;
 
         BALANCER_VAULT.joinPool{value: msgValue}(
             NOTE_ETH_POOL_ID,
@@ -206,17 +258,18 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
         _mint(msg.sender, bptAfter - bptBefore);
     }
 
-    function _exitPool(IAsset[] memory assets, uint256 bptExitAmount) internal {
+    function _exitPool(
+        IAsset[] memory assets,
+        uint256[] memory minAmountsOut,
+        uint256 bptExitAmount
+    ) internal {
         BALANCER_VAULT.exitPool(
             NOTE_ETH_POOL_ID,
             address(this),
             payable(msg.sender), // Owner will receive the underyling assets
             IVault.ExitPoolRequest(
                 assets,
-                // Accept whatever NOTE/WETH we will receive here, since these
-                // withdraws will be in a timelock it will be difficult to determine
-                // how the pool will be constituted at the time of withdraw
-                new uint256[](2),
+                minAmountsOut,
                 abi.encode(
                     IVault.ExitKind.EXACT_BPT_IN_FOR_TOKENS_OUT,
                     bptExitAmount
@@ -247,13 +300,13 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
     /// @notice Redeems some amount of sNOTE to underlying BPT tokens (which can then be sold for
     /// NOTE or ETH). An account must have passed its cool down expiration before they can redeem
     /// @param sNOTEAmount amount of sNOTE to redeem
-    function redeem(uint256 sNOTEAmount) external nonReentrant {
+    function redeem(uint256 sNOTEAmount, uint256 minWETH, uint256 minNOTE, bool redeemWETH) external nonReentrant {
         uint256 redeemWindowBegin = accountRedeemWindowBegin[msg.sender];
         uint256 redeemWindowEnd = redeemWindowBegin + REDEEM_WINDOW_SECONDS;
         require(
             redeemWindowBegin != 0 &&
-            redeemWindowBegin <= block.timestamp &&
-            block.timestamp <= redeemWindowEnd,
+                redeemWindowBegin <= block.timestamp &&
+                block.timestamp <= redeemWindowEnd,
             "Not in Redemption Window"
         );
 
@@ -261,20 +314,28 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
 
         // Handles event emission, balance update and total supply update
         _burn(msg.sender, sNOTEAmount);
-        
-        if (bptToRedeem > 0)
-        {
+
+        if (bptToRedeem > 0) {
             IAsset[] memory assets = new IAsset[](2);
-            assets[WETH_INDEX] = IAsset(address(0));
+            uint256[] memory minAmountsOut = new uint256[](2);
+
+            assets[WETH_INDEX] = redeemWETH ? IAsset(address(0)) : IAsset(address(WETH));
             assets[NOTE_INDEX] = IAsset(address(NOTE));
-            _exitPool(assets, bptToRedeem);
+            minAmountsOut[WETH_INDEX] = minWETH;
+            minAmountsOut[NOTE_INDEX] = minNOTE;
+
+            _exitPool(assets, minAmountsOut, bptToRedeem);
         }
     }
 
     /** External View Methods **/
 
     /// @notice Returns how many Balancer pool tokens an sNOTE token amount has a claim on
-    function getPoolTokenShare(uint256 sNOTEAmount) public view returns (uint256 bptClaim) {
+    function getPoolTokenShare(uint256 sNOTEAmount)
+        public
+        view
+        returns (uint256 bptClaim)
+    {
         uint256 _totalSupply = totalSupply();
         if (_totalSupply == 0) return 0;
 
@@ -284,7 +345,11 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
     }
 
     /// @notice Returns the pool token share of a specific account
-    function poolTokenShareOf(address account) public view returns (uint256 bptClaim) {
+    function poolTokenShareOf(address account)
+        public
+        view
+        returns (uint256 bptClaim)
+    {
         return getPoolTokenShare(balanceOf(account));
     }
 
@@ -296,10 +361,13 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
         if (_totalSupply == 0) return 0;
 
         // Gets the BPT token price (in ETH)
-        uint256 bptPrice = IPriceOracle(address(BALANCER_POOL_TOKEN)).getLatest(IPriceOracle.Variable.BPT_PRICE);
+        uint256 bptPrice = IPriceOracle(address(BALANCER_POOL_TOKEN)).getLatest(
+            IPriceOracle.Variable.BPT_PRICE
+        );
         // Gets the NOTE token price (in ETH)
-        uint256 notePrice = IPriceOracle(address(BALANCER_POOL_TOKEN)).getLatest(IPriceOracle.Variable.PAIR_PRICE);
-        
+        uint256 notePrice = IPriceOracle(address(BALANCER_POOL_TOKEN))
+            .getLatest(IPriceOracle.Variable.PAIR_PRICE);
+
         // Since both bptPrice and notePrice are denominated in ETH, we can use
         // this formula to calculate noteAmount
         // (bptBalance * 0.8) * bptPrice = notePrice * noteAmount
@@ -307,7 +375,8 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
         uint256 bptBalance = BALANCER_POOL_TOKEN.balanceOf(address(this));
         // This calculation is (NOTE tokens are in 8 decimal precision):
         // (1e18 * 1e18 * 1e2) / (1e18 * 1e2 * 1e10) == 1e8
-        uint256 noteAmount = (bptPrice * bptBalance * 80) / (notePrice * 100 * 1e10);
+        uint256 noteAmount = (bptPrice * bptBalance * 80) /
+            (notePrice * 100 * 1e10);
 
         return (noteAmount * sNOTEAmount) / _totalSupply;
     }
@@ -323,7 +392,12 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
     /// @param account a given sNOTE holding account
     /// @param blockNumber a block number to calculate voting power at
     /// @return corresponding NOTE voting power
-    function getPastVotes(address account, uint256 blockNumber) public view override returns (uint256) {
+    function getPastVotes(address account, uint256 blockNumber)
+        public
+        view
+        override
+        returns (uint256)
+    {
         return getVotingPower(super.getPastVotes(account, blockNumber));
     }
 
@@ -334,7 +408,10 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
         uint256 redeemWindowEnd = redeemWindowBegin + REDEEM_WINDOW_SECONDS;
         // An account is not in cool down if the redeem window is not set (== 0) or
         // if the window has already passed (redeemWindowEnd < block.timestamp)
-        require(redeemWindowBegin == 0 || redeemWindowEnd < block.timestamp, "Account in Cool Down");
+        require(
+            redeemWindowBegin == 0 || redeemWindowEnd < block.timestamp,
+            "Account in Cool Down"
+        );
     }
 
     /// @notice Mints sNOTE tokens given a bptAmount
@@ -388,7 +465,7 @@ contract sNOTE is ERC20VotesUpgradeable, BoringOwnable, UUPSUpgradeable, Reentra
     }
 
     function _safe32(uint256 x) internal pure returns (uint32) {
-        require (x <= type(uint32).max);
+        require(x <= type(uint32).max);
         return uint32(x);
     }
 }

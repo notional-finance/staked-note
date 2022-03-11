@@ -250,38 +250,41 @@ def test_redeem():
 
     # Cannot redeem without cooldown
     with brownie.reverts("Not in Redemption Window"):
-        env.sNOTE.redeem(env.sNOTE.balanceOf(testAccounts.ETHWhale), {"from": testAccounts.ETHWhale})
+        env.sNOTE.redeem(env.sNOTE.balanceOf(testAccounts.ETHWhale), 0, 0, True, {"from": testAccounts.ETHWhale})
 
     env.sNOTE.startCoolDown({"from": testAccounts.ETHWhale})
     chain.mine(timestamp=(chain.time() + 5))
 
     # Cannot redeem before window begins
     with brownie.reverts("Not in Redemption Window"):
-        env.sNOTE.redeem(env.sNOTE.balanceOf(testAccounts.ETHWhale), {"from": testAccounts.ETHWhale})
+        env.sNOTE.redeem(env.sNOTE.balanceOf(testAccounts.ETHWhale), 0, 0, True, {"from": testAccounts.ETHWhale})
 
     chain.mine(timestamp=(chain.time() + 100))
 
     ethBalBefore = testAccounts.ETHWhale.balance()
     noteBalBefore = env.note.balanceOf(testAccounts.ETHWhale)
+    wethBalBefore = env.weth.balanceOf(testAccounts.ETHWhale)
 
     # Successful redeem after window begins
-    env.sNOTE.redeem(env.sNOTE.balanceOf(testAccounts.ETHWhale) / 2, {"from": testAccounts.ETHWhale})
+    env.sNOTE.redeem(env.sNOTE.balanceOf(testAccounts.ETHWhale) / 2, 0, 0, True, {"from": testAccounts.ETHWhale})
 
     # Successful redeem again within window
-    env.sNOTE.redeem(env.sNOTE.balanceOf(testAccounts.ETHWhale) / 2, {"from": testAccounts.ETHWhale})
+    env.sNOTE.redeem(env.sNOTE.balanceOf(testAccounts.ETHWhale) / 2, 0, 0, False, {"from": testAccounts.ETHWhale})
 
     ethBalAfter = testAccounts.ETHWhale.balance()
     noteBalAfter = env.note.balanceOf(testAccounts.ETHWhale)
+    wethBalAfter = env.weth.balanceOf(testAccounts.ETHWhale)
 
-    assert pytest.approx(ethBalAfter - ethBalBefore, abs=1000) == 14999999999999897479
+    assert pytest.approx(ethBalAfter - ethBalBefore, abs=1000) == 9999999999999932800
     assert pytest.approx(noteBalAfter - noteBalBefore, abs=1000) == 7574999999
+    assert pytest.approx(wethBalAfter - wethBalBefore, abs=1000) == 4999999999999964679
 
     # Leave redemption window
     chain.mine(timestamp=(chain.time() + 86400 * 3))
 
     # Once a redemption occurs the cool down is reset
     with brownie.reverts("Not in Redemption Window"):
-        env.sNOTE.redeem(env.sNOTE.balanceOf(testAccounts.ETHWhale), {"from": testAccounts.ETHWhale})
+        env.sNOTE.redeem(env.sNOTE.balanceOf(testAccounts.ETHWhale), 0, 0, True, {"from": testAccounts.ETHWhale})
 
 def test_transfer():
     env = create_environment()
@@ -338,7 +341,7 @@ def test_cannot_transfer_inside_redeem_window():
 
     chain.mine(timestamp=(chain.time() + 105))
     # Successful redeem to show that we are in the window
-    env.sNOTE.redeem(env.sNOTE.balanceOf(testAccounts.ETHWhale) / 2, {"from": testAccounts.ETHWhale})
+    env.sNOTE.redeem(env.sNOTE.balanceOf(testAccounts.ETHWhale) / 2, 0, 0, True, {"from": testAccounts.ETHWhale})
     
     # Cannot transfer tokens even during the redemption window
     with brownie.reverts("Account in Cool Down"):

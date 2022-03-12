@@ -120,7 +120,11 @@ def test_mint_from_bpt():
 
     bptBalance = env.balancerPool.balanceOf(testAccounts.ETHWhale)
     env.balancerPool.approve(env.sNOTE.address, 2**255-1, {"from": testAccounts.ETHWhale})
-    env.sNOTE.mintFromBPT(bptBalance, {"from": testAccounts.ETHWhale})
+    txn = env.sNOTE.mintFromBPT(bptBalance, {"from": testAccounts.ETHWhale})
+    assert txn.events["SNoteMinted"]["account"] == testAccounts.ETHWhale
+    assert pytest.approx(txn.events["SNoteMinted"]["wethChangeAmount"], abs=1000) == 158416152317811103
+    assert pytest.approx(txn.events["SNoteMinted"]["noteChangeAmount"], abs=1000) == 80000156
+    assert txn.events["SNoteMinted"]["bptChangeAmount"] == bptBalance
 
     assert env.balancerPool.balanceOf(testAccounts.ETHWhale) == 0
     assert env.sNOTE.balanceOf(testAccounts.ETHWhale) == bptBalance
@@ -225,7 +229,11 @@ def test_mint_from_weth_and_note():
     env.note.approve(env.sNOTE.address, 2**256 - 1, {"from": testAccounts.WETHWhale})
     env.weth.approve(env.sNOTE.address, 2**255 - 1, {"from": testAccounts.WETHWhale})
 
-    env.sNOTE.mintFromWETH(1e8, 1e18, 0, {"from": testAccounts.WETHWhale})
+    txn = env.sNOTE.mintFromWETH(1e8, 1e18, 0, {"from": testAccounts.WETHWhale})
+    assert txn.events["SNoteMinted"]["account"] == testAccounts.WETHWhale
+    assert txn.events["SNoteMinted"]["wethChangeAmount"] == 1e18
+    assert txn.events["SNoteMinted"]["noteChangeAmount"] == 1e8
+    assert pytest.approx(txn.events["SNoteMinted"]["bptChangeAmount"], abs=1000) == 2586763967500929226
     assert env.sNOTE.balanceOf(testAccounts.WETHWhale) > 0
 
 def test_no_mint_during_cooldown():
@@ -246,7 +254,11 @@ def test_redeem():
     env.note.transfer(testAccounts.ETHWhale, 1e8, {"from": env.deployer})
     env.note.approve(env.sNOTE.address, 2**256-1, {"from": testAccounts.ETHWhale})
 
-    env.sNOTE.mintFromETH(1e8, 0,{"from": testAccounts.ETHWhale})
+    txn = env.sNOTE.mintFromETH(1e8, 0,{"from": testAccounts.ETHWhale})
+    assert txn.events["SNoteMinted"]["account"] == testAccounts.ETHWhale
+    assert txn.events["SNoteMinted"]["wethChangeAmount"] == 0
+    assert txn.events["SNoteMinted"]["noteChangeAmount"] == 1e8
+    assert pytest.approx(txn.events["SNoteMinted"]["bptChangeAmount"], abs=1000) == 1157335084531851455
 
     # Cannot redeem without cooldown
     with brownie.reverts("Not in Redemption Window"):
@@ -292,7 +304,11 @@ def test_transfer():
     env.note.transfer(testAccounts.ETHWhale, 1e8, {"from": env.deployer})
     env.note.approve(env.sNOTE.address, 2**256-1, {"from": testAccounts.ETHWhale})
 
-    env.sNOTE.mintFromETH(1e8, 0,{"from": testAccounts.ETHWhale})
+    txn = env.sNOTE.mintFromETH(1e8, 0,{"from": testAccounts.ETHWhale})
+    assert txn.events["SNoteMinted"]["account"] == testAccounts.ETHWhale
+    assert txn.events["SNoteMinted"]["wethChangeAmount"] == 0
+    assert txn.events["SNoteMinted"]["noteChangeAmount"] == 100000000
+    assert pytest.approx(txn.events["SNoteMinted"]["bptChangeAmount"], abs=1000) == 1157335084531851455
     env.sNOTE.transfer(env.deployer, 1e8, {"from": testAccounts.ETHWhale})
     assert env.sNOTE.balanceOf(env.deployer) == 1e8
 
@@ -302,7 +318,11 @@ def test_no_transfer_during_cooldown():
     env.note.transfer(testAccounts.ETHWhale, 1e8, {"from": env.deployer})
     env.note.approve(env.sNOTE.address, 2**256-1, {"from": testAccounts.ETHWhale})
 
-    env.sNOTE.mintFromETH(1e8, 0,{"from": testAccounts.ETHWhale})
+    txn = env.sNOTE.mintFromETH(1e8, 0,{"from": testAccounts.ETHWhale})
+    assert txn.events["SNoteMinted"]["account"] == testAccounts.ETHWhale
+    assert txn.events["SNoteMinted"]["wethChangeAmount"] == 0
+    assert txn.events["SNoteMinted"]["noteChangeAmount"] == 1e8
+    assert pytest.approx(txn.events["SNoteMinted"]["bptChangeAmount"], abs=1000) == 1157335084531851455
     env.sNOTE.startCoolDown({"from": testAccounts.ETHWhale})
 
     with brownie.reverts("Account in Cool Down"):
@@ -319,7 +339,11 @@ def test_transfer_with_delegates():
     env.note.transfer(testAccounts.ETHWhale, 1e8, {"from": env.deployer})
     env.note.approve(env.sNOTE.address, 2**256-1, {"from": testAccounts.ETHWhale})
 
-    env.sNOTE.mintFromETH(1e8, 0,{"from": testAccounts.ETHWhale})
+    txn = env.sNOTE.mintFromETH(1e8, 0,{"from": testAccounts.ETHWhale})
+    assert txn.events["SNoteMinted"]["account"] == testAccounts.ETHWhale
+    assert txn.events["SNoteMinted"]["wethChangeAmount"] == 0
+    assert txn.events["SNoteMinted"]["noteChangeAmount"] == 1e8
+    assert pytest.approx(txn.events["SNoteMinted"]["bptChangeAmount"], abs=1000) == 1157335084531851455
     env.sNOTE.delegate(testAccounts.ETHWhale, {"from": testAccounts.ETHWhale})
     env.sNOTE.delegate(env.deployer, {"from": env.deployer})
     votesStarting = env.sNOTE.getVotes(testAccounts.ETHWhale)
@@ -336,13 +360,23 @@ def test_cannot_transfer_inside_redeem_window():
     env.note.transfer(testAccounts.ETHWhale, 1e8, {"from": env.deployer})
     env.note.approve(env.sNOTE.address, 2**256-1, {"from": testAccounts.ETHWhale})
 
-    env.sNOTE.mintFromETH(1e8, 0,{"from": testAccounts.ETHWhale})
+    txn = env.sNOTE.mintFromETH(1e8, 0,{"from": testAccounts.ETHWhale})
+    assert txn.events["SNoteMinted"]["account"] == testAccounts.ETHWhale
+    assert txn.events["SNoteMinted"]["wethChangeAmount"] == 0
+    assert txn.events["SNoteMinted"]["noteChangeAmount"] == 1e8
+    assert pytest.approx(txn.events["SNoteMinted"]["bptChangeAmount"], abs=1000) == 1157335084531851455
     env.sNOTE.startCoolDown({"from": testAccounts.ETHWhale})
 
     chain.mine(timestamp=(chain.time() + 105))
+
     # Successful redeem to show that we are in the window
-    env.sNOTE.redeem(env.sNOTE.balanceOf(testAccounts.ETHWhale) / 2, 0, 0, True, {"from": testAccounts.ETHWhale})
-    
+    txn = env.sNOTE.redeem(env.sNOTE.balanceOf(testAccounts.ETHWhale) / 2, 0, 0, True, {"from": testAccounts.ETHWhale})
+    # Withdrawing more WETH and NOTE because of donated initial liquidity
+    assert txn.events["SNoteRedeemed"]["account"] == testAccounts.ETHWhale
+    assert pytest.approx(txn.events["SNoteRedeemed"]["wethChangeAmount"], abs=1000) == 9999999999999932800
+    assert pytest.approx(txn.events["SNoteRedeemed"]["noteChangeAmount"], abs=1000) == 5049999999
+    assert pytest.approx(txn.events["SNoteRedeemed"]["bptChangeAmount"], abs=1000) == 73056633910033538244
+
     # Cannot transfer tokens even during the redemption window
     with brownie.reverts("Account in Cool Down"):
         env.sNOTE.transfer(env.deployer, env.sNOTE.balanceOf(testAccounts.ETHWhale), {"from": testAccounts.ETHWhale})

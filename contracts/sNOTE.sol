@@ -60,6 +60,22 @@ contract sNOTE is
     /// @notice Emitted when cool down time is updated
     event GlobalCoolDownUpdated(uint256 newCoolDownTimeSeconds);
 
+    /// @notice Emitted when sNote is minted
+    event SNoteMinted(
+        address indexed account,
+        uint256 wethChangeAmount,
+        uint256 noteChangeAmount,
+        uint256 bptChangeAmount
+    );
+
+    /// @notice Emitted when sNote is redeemed
+    event SNoteRedeemed(
+        address indexed account,
+        uint256 wethChangeAmount,
+        uint256 noteChangeAmount,
+        uint256 bptChangeAmount
+    );
+
     /// @notice Constructor sets immutable contract addresses
     constructor(
         IVault _balancerVault,
@@ -68,10 +84,8 @@ contract sNOTE is
         uint256 _noteIndex
     ) initializer {
         // Validate that the pool exists
-        (
-            address poolAddress, /* */
-
-        ) = _balancerVault.getPool(_noteETHPoolId);
+        // prettier-ignore
+        (address poolAddress, /* */) = _balancerVault.getPool(_noteETHPoolId);
         require(poolAddress != address(0));
 
         WETH_INDEX = _wethIndex;
@@ -175,6 +189,30 @@ contract sNOTE is
             bptAmount
         );
         _mint(msg.sender, bptAmount);
+        (uint256 wethAmount, uint256 noteAmount) = _getTokenBalances(bptAmount);
+        emit SNoteMinted(msg.sender, wethAmount, noteAmount, bptAmount);
+    }
+
+    function _getTokenBalances(uint256 bptAmount)
+        internal
+        returns (uint256, uint256)
+    {
+        // prettier-ignore
+        (
+            /* address[] memory tokens */,
+            uint256[] memory balances,
+            /* uint256 lastChangeBlock */
+        ) = BALANCER_VAULT.getPoolTokens(NOTE_ETH_POOL_ID);
+
+        uint256 bptSupply = BALANCER_POOL_TOKEN.totalSupply();
+
+        // increase NOTE precision to 1e18
+        uint256 noteBal = balances[NOTE_INDEX] * 1e10;
+
+        return (
+            (balances[WETH_INDEX] * bptAmount) / bptSupply,
+            (noteBal * bptAmount) / bptSupply / 1e10
+        );
     }
 
     /// @notice Mints sNOTE from some amount of NOTE and ETH
@@ -253,9 +291,17 @@ contract sNOTE is
             )
         );
         uint256 bptAfter = BALANCER_POOL_TOKEN.balanceOf(address(this));
+        uint256 bptChange = bptAfter - bptBefore;
 
         // Balancer pool token amounts must increase
-        _mint(msg.sender, bptAfter - bptBefore);
+        _mint(msg.sender, bptChange);
+
+        emit SNoteMinted(
+            msg.sender,
+            maxAmountsIn[WETH_INDEX],
+            maxAmountsIn[NOTE_INDEX],
+            bptChange
+        );
     }
 
     function _exitPool(
@@ -263,6 +309,13 @@ contract sNOTE is
         uint256[] memory minAmountsOut,
         uint256 bptExitAmount
     ) internal {
+        uint256 wethBefore = address(assets[WETH_INDEX]) == address(0)
+            ? msg.sender.balance
+            : IERC20(address(assets[WETH_INDEX])).balanceOf(msg.sender);
+        uint256 noteBefore = IERC20(address(assets[NOTE_INDEX])).balanceOf(
+            msg.sender
+        );
+
         BALANCER_VAULT.exitPool(
             NOTE_ETH_POOL_ID,
             address(this),
@@ -276,6 +329,20 @@ contract sNOTE is
                 ),
                 false // Don't use internal balances
             )
+        );
+
+        uint256 wethAfter = address(assets[WETH_INDEX]) == address(0)
+            ? msg.sender.balance
+            : IERC20(address(assets[WETH_INDEX])).balanceOf(msg.sender);
+        uint256 noteAfter = IERC20(address(assets[NOTE_INDEX])).balanceOf(
+            msg.sender
+        );
+
+        emit SNoteRedeemed(
+            msg.sender,
+            wethAfter - wethBefore,
+            noteAfter - noteBefore,
+            bptExitAmount
         );
     }
 
@@ -300,7 +367,12 @@ contract sNOTE is
     /// @notice Redeems some amount of sNOTE to underlying BPT tokens (which can then be sold for
     /// NOTE or ETH). An account must have passed its cool down expiration before they can redeem
     /// @param sNOTEAmount amount of sNOTE to redeem
-    function redeem(uint256 sNOTEAmount, uint256 minWETH, uint256 minNOTE, bool redeemWETH) external nonReentrant {
+    function redeem(
+        uint256 sNOTEAmount,
+        uint256 minWETH,
+        uint256 minNOTE,
+        bool redeemWETH
+    ) external nonReentrant {
         uint256 redeemWindowBegin = accountRedeemWindowBegin[msg.sender];
         uint256 redeemWindowEnd = redeemWindowBegin + REDEEM_WINDOW_SECONDS;
         require(
@@ -319,7 +391,9 @@ contract sNOTE is
             IAsset[] memory assets = new IAsset[](2);
             uint256[] memory minAmountsOut = new uint256[](2);
 
-            assets[WETH_INDEX] = redeemWETH ? IAsset(address(0)) : IAsset(address(WETH));
+            assets[WETH_INDEX] = redeemWETH
+                ? IAsset(address(0))
+                : IAsset(address(WETH));
             assets[NOTE_INDEX] = IAsset(address(NOTE));
             minAmountsOut[WETH_INDEX] = minWETH;
             minAmountsOut[NOTE_INDEX] = minNOTE;

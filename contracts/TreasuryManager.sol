@@ -34,6 +34,11 @@ contract TreasuryManager is
     IExchangeV3 public immutable EXCHANGE;
     uint32 public constant MAXIMUM_COOL_DOWN_PERIOD_SECONDS = 30 days;
 
+    /// @notice Balancer token indexes
+    /// Balancer requires token addresses to be sorted BAL#102
+    uint256 public immutable WETH_INDEX;
+    uint256 public immutable NOTE_INDEX;
+
     address public manager;
 
     /// @notice This limit determines the maximum price impact (% increase from current oracle price)
@@ -72,11 +77,16 @@ contract TreasuryManager is
         IERC20 _note,
         address _sNOTE,
         address _assetProxy,
-        IExchangeV3 _exchange
+        IExchangeV3 _exchange,
+        uint256 _wethIndex,
+        uint256 _noteIndex
     ) EIP1271Wallet(_weth) initializer {
         // Balancer will revert if pool is not found
         // prettier-ignore
         (address poolAddress, /* */) = _balancerVault.getPool(_noteETHPoolId);
+
+        WETH_INDEX = _wethIndex;
+        NOTE_INDEX = _noteIndex;
 
         NOTIONAL = NotionalTreasuryAction(_notional);
         sNOTE = _sNOTE;
@@ -197,15 +207,18 @@ contract TreasuryManager is
         uint256 minBPT
     ) external onlyManager {
         uint32 blockTime = _safe32(block.timestamp);
-        require(lastInvestTimestamp + coolDownTimeInSeconds < blockTime, "Investment Cooldown");
+        require(
+            lastInvestTimestamp + coolDownTimeInSeconds < blockTime,
+            "Investment Cooldown"
+        );
         lastInvestTimestamp = blockTime;
 
         IAsset[] memory assets = new IAsset[](2);
-        assets[0] = IAsset(address(WETH));
-        assets[1] = IAsset(address(NOTE));
+        assets[WETH_INDEX] = IAsset(address(WETH));
+        assets[NOTE_INDEX] = IAsset(address(NOTE));
         uint256[] memory maxAmountsIn = new uint256[](2);
-        maxAmountsIn[0] = wethAmount;
-        maxAmountsIn[1] = noteAmount;
+        maxAmountsIn[WETH_INDEX] = wethAmount;
+        maxAmountsIn[NOTE_INDEX] = noteAmount;
 
         IPriceOracle.OracleAverageQuery[]
             memory queries = new IPriceOracle.OracleAverageQuery[](1);
@@ -254,10 +267,8 @@ contract TreasuryManager is
             /* uint256 lastChangeBlock */
         ) = BALANCER_VAULT.getPoolTokens(NOTE_ETH_POOL_ID);
 
-        // balances[0] = WETH
-        // balances[1] = NOTE
         // increase NOTE precision to 1e18
-        uint256 noteBal = balances[1] * 1e10;
+        uint256 noteBal = balances[NOTE_INDEX] * 1e10;
 
         // We need to multiply the numerator by 1e18 to preserve enough
         // precision for the division
@@ -267,7 +278,7 @@ contract TreasuryManager is
         // SpotPrice = (ETHBalance * 5 * 1e18) / (NOTEBalance * 1.25)
         // SpotPrice = (ETHBalance * 5 * 1e18) / (NOTEBalance * 125 / 100)
 
-        return (balances[0] * 5 * 1e18) / ((noteBal * 125) / 100);
+        return (balances[WETH_INDEX] * 5 * 1e18) / ((noteBal * 125) / 100);
     }
 
     function isValidSignature(bytes calldata data, bytes calldata signature)
@@ -279,7 +290,7 @@ contract TreasuryManager is
     }
 
     function _safe32(uint256 x) internal pure returns (uint32) {
-        require (x <= type(uint32).max);
+        require(x <= type(uint32).max);
         return uint32(x);
     }
 

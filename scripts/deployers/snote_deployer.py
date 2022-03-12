@@ -90,7 +90,7 @@ class SNoteDeployer:
 
     def upgradeSNote(self):
         impl = self._deployImpl()
-        proxy = interface.sNoteProxy(self.staking["sNoteProxy"])
+        proxy = interface.UpgradeableProxy(self.staking["sNoteProxy"])
 
         if proxy.getImplementation() == impl.address:
             print("sNote does not need to be upgraded")

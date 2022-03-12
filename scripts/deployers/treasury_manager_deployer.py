@@ -1,5 +1,5 @@
 import json
-from brownie import Contract, TreasuryManager, nProxy
+from brownie import Contract, TreasuryManager, nProxy, interface
 from scripts.deployers.contract_deployer import ContractDeployer
 
 TreasuryManagerConfig = {
@@ -41,6 +41,17 @@ class TreasuryManagerDeployer:
         if "treasuryManagerImpl" in self.staking:
             return Contract.from_abi("TreasuryManagerImpl", self.staking["treasuryManagerImpl"], TreasuryManager.abi)
 
+        tokens = [
+            TreasuryManagerConfig[self.network]["weth"],
+            self.config["note"]
+        ]
+
+        # NOTE: Balancer requires token addresses to be sorted BAL#102
+        tokens.sort()
+
+        wethIndex = 0 if tokens[0] == TreasuryManagerConfig[self.network]["weth"] else 1
+        noteIndex = 0 if tokens[0] == self.config["note"] else 1
+
         deployer = ContractDeployer(self.deployer)
         impl = deployer.deploy(TreasuryManager, [
             self.config["notional"],
@@ -51,6 +62,8 @@ class TreasuryManagerDeployer:
             self.config["staking"]["sNoteProxy"],
             TreasuryManagerConfig[self.network]["assetProxy"],
             TreasuryManagerConfig[self.network]["exchange"],
+            wethIndex,
+            noteIndex
         ], "TreasuryManagerImpl")
         self.staking["treasuryManagerImpl"] = impl.address
         self._save()
@@ -62,12 +75,12 @@ class TreasuryManagerDeployer:
         if "treasuryManager" in self.staking:
             print("treasuryManager deployed at {}".format(self.staking["treasuryManager"]))
 
-            proxy = Contract.from_abi("treasuryManagerProxy", self.staking["treasuryManager"], nProxy.abi)
+            proxy = interface.UpgradeableProxy(self.staking["treasuryManager"])
             current = proxy.getImplementation()
 
             if current != impl.address:
                 print("Upgrading treasury manager from {} to {}".format(current, impl.address))
-                impl.upgradeTo(impl.address, {"from": self.deployer})
+                proxy.upgradeTo(impl.address, {"from": self.deployer})
             return
 
         initData = impl.initialize.encode_input(self.deployer, self.deployer, SECONDS_IN_DAY)

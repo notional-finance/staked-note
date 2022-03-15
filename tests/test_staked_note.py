@@ -277,10 +277,10 @@ def test_redeem():
     noteBalBefore = env.note.balanceOf(testAccounts.ETHWhale)
     wethBalBefore = env.weth.balanceOf(testAccounts.ETHWhale)
 
-    # Successful redeem after window begins
+    # Successful redeem after window begins (redeem to ETH)
     env.sNOTE.redeem(env.sNOTE.balanceOf(testAccounts.ETHWhale) / 2, 0, 0, True, {"from": testAccounts.ETHWhale})
 
-    # Successful redeem again within window
+    # Successful redeem again within window (redeem to WETH)
     env.sNOTE.redeem(env.sNOTE.balanceOf(testAccounts.ETHWhale) / 2, 0, 0, False, {"from": testAccounts.ETHWhale})
 
     ethBalAfter = testAccounts.ETHWhale.balance()

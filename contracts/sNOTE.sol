@@ -364,9 +364,12 @@ contract sNOTE is
         emit CoolDownEnded(msg.sender);
     }
 
-    /// @notice Redeems some amount of sNOTE to underlying BPT tokens (which can then be sold for
-    /// NOTE or ETH). An account must have passed its cool down expiration before they can redeem
+    /// @notice Redeems some amount of sNOTE to underlying constituent tokens (ETH and NOTE).
+    /// An account must have passed its cool down expiration before they can redeem
     /// @param sNOTEAmount amount of sNOTE to redeem
+    /// @param minWETH slippage protection for ETH/WETH amount
+    /// @param minNOTE slippage protection for NOTE amount
+    /// @param redeemWETH true if redeeming to WETH to ETH
     function redeem(
         uint256 sNOTEAmount,
         uint256 minWETH,

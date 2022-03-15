@@ -278,6 +278,7 @@ class Environment:
             self.sNOTEProxy.address,
             EnvironmentConfig["ERC20AssetProxy"],
             EnvironmentConfig["ExchangeV3"],            
+            0, 1,
             { "from": self.deployer }
         )
         initData = treasuryManager.initialize.encode_input(self.deployer, self.deployer, SECONDS_IN_DAY)

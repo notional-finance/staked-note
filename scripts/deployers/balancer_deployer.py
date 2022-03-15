@@ -7,19 +7,29 @@ BalancerConfig = {
         "weth": "0xdFCeA9088c8A88A76FF74892C1457C17dfeef9C1",
         "name": "Staked NOTE Weighted Pool",
         "symbol": "sNOTE-BPT",
-        "weights": [ 0.2e18, 0.8e18 ],
+        "weights": [ 0.8e18, 0.2e18 ],
         "swapFeePercentage": 0.005e18, # 0.5%
         "oracleEnable": True
+    },
+    "mainnet": {
+        "factory": "0xA5bf2ddF098bb0Ef6d120C98217dD6B141c74EE0",
+        "weth": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+        "name": "Staked NOTE Weighted Pool",
+        "symbol": "sNOTE-BPT",
+        "weights": [ 0.2e18, 0.8e18 ],
+        "swapFeePercentage": 0.005e18, # 0.5%
+        "oracleEnable": True        
     }
 }
 
 class BalancerDeployer:
     def __init__(self, network, deployer, config=None, persist=True) -> None:
         self.config = config
-        if self.config == None:
-            self.config = {}
         self.persist = persist
         self.network = network
+        if self.network == "hardhat-fork":
+            self.network = "mainnet"
+            self.persist = False
         self.deployer = deployer
         self.staking = {}
         self._load()
@@ -27,7 +37,7 @@ class BalancerDeployer:
 
     def _load(self):
         print("Loading balancer config")
-        if self.persist:
+        if self.config == None:
             with open("v2.{}.json".format(self.network), "r") as f:
                 self.config = json.load(f)
         if "staking" in self.config:
@@ -78,4 +88,5 @@ class BalancerDeployer:
             "address": poolRegistered['poolAddress'],
             "id": str(poolRegistered['poolId'])
         }
+        print("Pool created address={} id={}".format(poolRegistered['poolAddress'], str(poolRegistered['poolId'])))
         self._save()

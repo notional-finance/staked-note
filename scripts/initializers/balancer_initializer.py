@@ -9,22 +9,32 @@ BalancerConfig = {
     "goerli": {
         "vault": "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
         "weth": "0xdFCeA9088c8A88A76FF74892C1457C17dfeef9C1",
+        "wethIndex": 1,
+        "noteIndex": 0,
         "initBalances": [ Wei(1e8), Wei(0.2e18) ]
+    },
+    "mainnet": {
+        "vault": "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
+        "weth": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+        "wethIndex": 0,
+        "noteIndex": 1,
+        "initBalances": [ Wei(0.0325e18), Wei(500e8) ]        
     }
 }
 
 class BalancerInitializer:
     def __init__(self, network, deployer, config=None, persist=True) -> None:
         self.config = config
-        if self.config == None:
-            self.config = {}
         self.persist = persist
         self.network = network
+        if self.network == "hardhat-fork":
+            self.network = "mainnet"
+            self.persist = False
         self.deployer = deployer
         self._load()
 
     def _load(self):
-        if self.persist:
+        if self.config == None:
             with open("v2.{}.json".format(self.network), "r") as f:
                 self.config = json.load(f)
         self.vault = self._loadVault(BalancerConfig[self.network]["vault"])
@@ -64,25 +74,30 @@ class BalancerInitializer:
             print("Balancer pool already initialized")
             return
 
-        self.note.approve(self.vault.address, 2**256 - 1, {"from": self.deployer})
-        self.weth.approve(self.vault.address, 2**256 - 1, {"from": self.deployer})
+        #self.note.approve(self.vault.address, 2**256 - 1, {"from": self.deployer})
+        #self.weth.approve(self.vault.address, 2**256 - 1, {"from": self.deployer})
         userData = eth_abi.encode_abi(
             ['uint256', 'uint256[]'],
             [0, BalancerConfig[self.network]["initBalances"]]
         )
+
+        addresses = [None] * 2
+        addresses[BalancerConfig[self.network]["wethIndex"]] = ETH_ADDRESS
+        addresses[BalancerConfig[self.network]["noteIndex"]] = self.config["note"]
+        initBalances = BalancerConfig[self.network]["initBalances"]
 
         self.vault.joinPool(
             self.config["staking"]["pool"]["id"],
             self.deployer.address,
             self.sNote.address,
             (
-                [self.note.address, ETH_ADDRESS],
-                BalancerConfig[self.network]["initBalances"],
+                addresses,
+                initBalances,
                 userData,
                 False
             ),
             {
                 "from": self.deployer,
-                "value": BalancerConfig[self.network]["initBalances"][1]
+                "value": initBalances[BalancerConfig[self.network]["wethIndex"]]
             }
         )

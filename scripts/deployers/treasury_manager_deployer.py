@@ -7,7 +7,17 @@ TreasuryManagerConfig = {
         "vault": "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
         "weth": "0xdFCeA9088c8A88A76FF74892C1457C17dfeef9C1",
         "assetProxy": "0xB441EeD44B2B342972b173109DAFd2bdAd3260a5",
-        "exchange": "0xB441EeD44B2B342972b173109DAFd2bdAd3260a5"
+        "exchange": "0xB441EeD44B2B342972b173109DAFd2bdAd3260a5",
+        "wethIndex": 1,
+        "noteIndex": 0
+    },
+    "mainnet": {
+        "vault": "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
+        "weth": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+        "assetProxy": "0x95E6F48254609A6ee006F7D493c8e5fB97094ceF",
+        "exchange": "0x61935cbdd02287b511119ddb11aeb42f1593b7ef",
+        "wethIndex": 0,
+        "noteIndex": 1        
     }
 }
 SECONDS_IN_DAY = 86400
@@ -15,17 +25,18 @@ SECONDS_IN_DAY = 86400
 class TreasuryManagerDeployer:
     def __init__(self, network, deployer, config=None, persist=True) -> None:
         self.config = config
-        if self.config == None:
-            self.config = {}
         self.persist = persist
         self.network = network
+        if self.network == "hardhat-fork":
+            self.network = "mainnet"
+            self.persist = False
         self.deployer = deployer
         self.staking = {}
         self._load()
 
     def _load(self):
         print("Loading TreasuryManager config")
-        if self.persist:
+        if self.config == None:
             with open("v2.{}.json".format(self.network), "r") as f:
                 self.config = json.load(f)
         self.staking = self.config["staking"]
@@ -41,17 +52,6 @@ class TreasuryManagerDeployer:
         if "treasuryManagerImpl" in self.staking:
             return Contract.from_abi("TreasuryManagerImpl", self.staking["treasuryManagerImpl"], TreasuryManager.abi)
 
-        tokens = [
-            TreasuryManagerConfig[self.network]["weth"],
-            self.config["note"]
-        ]
-
-        # NOTE: Balancer requires token addresses to be sorted BAL#102
-        tokens.sort()
-
-        wethIndex = 0 if tokens[0] == TreasuryManagerConfig[self.network]["weth"] else 1
-        noteIndex = 0 if tokens[0] == self.config["note"] else 1
-
         deployer = ContractDeployer(self.deployer)
         impl = deployer.deploy(TreasuryManager, [
             self.config["notional"],
@@ -62,8 +62,8 @@ class TreasuryManagerDeployer:
             self.config["staking"]["sNoteProxy"],
             TreasuryManagerConfig[self.network]["assetProxy"],
             TreasuryManagerConfig[self.network]["exchange"],
-            wethIndex,
-            noteIndex
+            TreasuryManagerConfig[self.network]["wethIndex"],
+            TreasuryManagerConfig[self.network]["noteIndex"]
         ], "TreasuryManagerImpl")
         self.staking["treasuryManagerImpl"] = impl.address
         self._save()

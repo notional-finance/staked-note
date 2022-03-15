@@ -26,7 +26,10 @@ def deployTreasuryManager(deployer):
     manager.deploy()
 
 def main():
-    deployer = accounts.load(network.show_active().upper() + "_DEPLOYER")
+    networkName = network.show_active()
+    if networkName == "hardhat-fork":
+        networkName = "mainnet"
+    deployer = accounts.load(networkName.upper() + "_DEPLOYER")
     deployEmptyProxy(deployer)
     deployBalancerPool(deployer)
     upgradeSNote(deployer)

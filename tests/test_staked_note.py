@@ -277,19 +277,19 @@ def test_redeem():
     noteBalBefore = env.note.balanceOf(testAccounts.ETHWhale)
     wethBalBefore = env.weth.balanceOf(testAccounts.ETHWhale)
 
-    # Successful redeem after window begins
+    # Successful redeem after window begins (redeemWETH)
     env.sNOTE.redeem(env.sNOTE.balanceOf(testAccounts.ETHWhale) / 2, 0, 0, True, {"from": testAccounts.ETHWhale})
 
-    # Successful redeem again within window
+    # Successful redeem again within window (redeemETH)
     env.sNOTE.redeem(env.sNOTE.balanceOf(testAccounts.ETHWhale) / 2, 0, 0, False, {"from": testAccounts.ETHWhale})
 
     ethBalAfter = testAccounts.ETHWhale.balance()
     noteBalAfter = env.note.balanceOf(testAccounts.ETHWhale)
     wethBalAfter = env.weth.balanceOf(testAccounts.ETHWhale)
 
-    assert pytest.approx(ethBalAfter - ethBalBefore, abs=1000) == 9999999999999932800
+    assert pytest.approx(wethBalAfter - wethBalBefore, abs=1000) == 9999999999999932800
     assert pytest.approx(noteBalAfter - noteBalBefore, abs=1000) == 7574999999
-    assert pytest.approx(wethBalAfter - wethBalBefore, abs=1000) == 4999999999999964679
+    assert pytest.approx(ethBalAfter - ethBalBefore, abs=1000) == 4999999999999964679
 
     # Leave redemption window
     chain.mine(timestamp=(chain.time() + 86400 * 3))

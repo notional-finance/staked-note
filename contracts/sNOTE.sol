@@ -369,7 +369,7 @@ contract sNOTE is
     /// @param sNOTEAmount amount of sNOTE to redeem
     /// @param minETH slippage protection for ETH/WETH amount
     /// @param minNOTE slippage protection for NOTE amount
-    /// @param redeemWETH true if redeeming to WETH, otherwise will transfer ETH
+    /// @param redeemWETH true if redeeming to WETH to ETH
     function redeem(
         uint256 sNOTEAmount,
         uint256 minETH,
@@ -395,8 +395,8 @@ contract sNOTE is
             uint256[] memory minAmountsOut = new uint256[](2);
 
             assets[WETH_INDEX] = redeemWETH
-                ? IAsset(address(WETH))
-                : IAsset(address(0));
+                ? IAsset(address(0))
+                : IAsset(address(WETH));
             assets[NOTE_INDEX] = IAsset(address(NOTE));
             minAmountsOut[WETH_INDEX] = minETH;
             minAmountsOut[NOTE_INDEX] = minNOTE;

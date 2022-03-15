@@ -80,7 +80,11 @@ def sign_defunct_message_raw(account, message: bytes) -> SignedMessage:
     )
     
 class Order:
-    def __init__(self, assetProxy, makerAddr, makerToken, makerAmt, takerToken, takerAmt) -> None:
+    def __init__(self, assetProxy, makerAddr, makerToken, makerAmt, takerToken, takerAmt, now=None) -> None:
+        if now == None:
+            ts = time.time()
+        else:
+            ts = now
         self.packedEncoder = eth_abi.codec.ABIEncoder(eth_abi.registry.registry_packed)
         self.makerAddress = makerAddr
         self.takerAddress = ZERO_ADDRESS
@@ -90,12 +94,12 @@ class Order:
         self.takerAssetAmount = takerAmt
         self.makerFee = 0
         self.takerFee = 0
-        self.expirationTimeSeconds = time.time() + 30000
-        self.salt = time.time()
+        self.expirationTimeSeconds = ts + 30 * 60
+        self.salt = ts
         self.makerAssetData = self.encodeAssetData(assetProxy, makerToken)
         self.takerAssetData = self.encodeAssetData(assetProxy, takerToken)
-        self.makerFeeAssetData = self.encodeAssetData(assetProxy, makerToken)
-        self.takerFeeAssetData = self.encodeAssetData(assetProxy, takerToken)
+        self.makerFeeAssetData = 0x0
+        self.takerFeeAssetData = 0x0
 
     def encodeAssetData(self, assetProxy, token):
         return assetProxy.ERC20Token.encode_input(token)
@@ -277,7 +281,7 @@ class Environment:
             EnvironmentConfig["NOTE"],
             self.sNOTEProxy.address,
             EnvironmentConfig["ERC20AssetProxy"],
-            EnvironmentConfig["ExchangeV3"],            
+            EnvironmentConfig["ExchangeV3"],
             0, 1,
             { "from": self.deployer }
         )
@@ -289,7 +293,7 @@ class Environment:
         return ChainlinkAdapter.deploy(
             self.config["COMP_USD_Oracle"],
             self.config["ETH_USD_Oracle"],
-            "COMP/ETH",
+            "Notional COMP/ETH Chainlink Adapter",
             {"from": self.deployer}
         )
 

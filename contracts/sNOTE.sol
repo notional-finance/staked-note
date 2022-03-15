@@ -367,12 +367,12 @@ contract sNOTE is
     /// @notice Redeems some amount of sNOTE to underlying constituent tokens (ETH and NOTE).
     /// An account must have passed its cool down expiration before they can redeem
     /// @param sNOTEAmount amount of sNOTE to redeem
-    /// @param minETH slippage protection for ETH/WETH amount
+    /// @param minWETH slippage protection for ETH/WETH amount
     /// @param minNOTE slippage protection for NOTE amount
     /// @param redeemWETH true if redeeming to WETH to ETH
     function redeem(
         uint256 sNOTEAmount,
-        uint256 minETH,
+        uint256 minWETH,
         uint256 minNOTE,
         bool redeemWETH
     ) external nonReentrant {
@@ -398,7 +398,7 @@ contract sNOTE is
                 ? IAsset(address(0))
                 : IAsset(address(WETH));
             assets[NOTE_INDEX] = IAsset(address(NOTE));
-            minAmountsOut[WETH_INDEX] = minETH;
+            minAmountsOut[WETH_INDEX] = minWETH;
             minAmountsOut[NOTE_INDEX] = minNOTE;
 
             _exitPool(assets, minAmountsOut, bptToRedeem);

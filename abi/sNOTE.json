@@ -1091,7 +1091,7 @@
             },
             {
                 "internalType": "uint256",
-                "name": "minETH",
+                "name": "minWETH",
                 "type": "uint256"
             },
             {

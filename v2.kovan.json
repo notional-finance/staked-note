@@ -1,0 +1,60 @@
+{
+    "actions": {
+        "AccountAction": "0x9DD4892963F82d3ba0A6902a75dF142f1B2A4e55",
+        "BatchAction": "0x46f388C42b0FD4C3A47A9b8E5125Fe0258A3f6D9",
+        "CalculationViews": "0xD10D4289D550D4ad01b3cc0091f9A3B5343eD2eE",
+        "ERC1155Action": "0x32b9Cf3F1542E05C109761c40CD0aC66972Bf926",
+        "GovernanceAction": "0x2D92B11E0005A2A4C7DCBc46783C7F92eef502f3",
+        "InitializeMarketsAction": "0xcD5dedF4a1d7a0c070218cA568DcbF7395282ffa",
+        "LiquidateCurrencyAction": "0x3aB3945615b23b5A30415e1AC5B8A6530e6C84d8",
+        "LiquidatefCashAction": "0x80b3460A7C737a4D95091eA75f87DbC6143049E7",
+        "TreasuryAction": "0x52210F93AFd958E89F86654baAb5B6f65De5F96a",
+        "Views": "0xaaf449c075ae63C99411B120042e82c190372BE9",
+        "nTokenAction": "0x9CcBeC0Ee9b0ceC6EBb2FBe41aE822a53362728F"
+    },
+    "airdrop": "0xa40aedAac28F9574124D7c8EFf59732cC77f1DD4",
+    "chainId": 42,
+    "compound": {
+        "comptroller": "0x2D5D30a561278a5F0ad8779A386dAA4C478865D0",
+        "ctokens": {
+            "ETH": {
+                "address": "0x40575f9eb401f63f66f4c434248ad83d3441bf61"
+            }
+        }
+    },
+    "deployer": "0x8B64fA5Fd129df9c755eB82dB1e16D6D0Bdf5Bc3",
+    "governor": "0x95DF7E34403beCd532f2BE160cacda56F0BD6bA3",
+    "guardian": "0x6F7F94E4fdC3eDa4693d8FC5da94014B11572B3F",
+    "libs": {
+        "FreeCollateralExternal": "0xCcD63A879683f7e99eef28ED41B0d95Eae2Cb7AD",
+        "MigrateIncentives": "0x4E8EA7012670475ee746032aE7a54ba088FDaC8A",
+        "SettleAssetsExternal": "0x8638f94155c333fd7087c012Dc51B0528bb06035",
+        "TradingAction": "0xC6a0c1eC0736FDCbC2d32F3A03DA084Aa8c5E4Df",
+        "nTokenMintAction": "0x6F18b4Fc87148459de5dBA905D03BF9c66561A5a",
+        "nTokenRedeemAction": "0x613f379A4D65A62B7843379a5E7071e52528631f"
+    },
+    "networkName": "kovan",
+    "note": "0xCFEAead4947f0705A14ec42aC3D44129E1Ef3eD5",
+    "notional": "0x0EAE7BAdEF8f95De91fDDb74a89A786cF891Eb0e",
+    "routers": {
+        "PauseRouter": "0x9D1dD73432fDdBA1a74F4576c08e5178100B5869",
+        "Router": "0x79b55978DEf57A3E1024336265E2eb50A9C846d1"
+    },
+    "staking": {
+        "pool": {
+            "address": "0xAaEd510C03df5A4c9d8D660fe477E01AcDC9c561",
+            "id": "0xaaed510c03df5a4c9d8d660fe477e01acdc9c561000200000000000000000702"
+        },
+        "sNoteEmptyImpl": "0x792474a49F87889Ac9cDb4d8637EbC1CacB4110E",
+        "sNoteImpl": "0xDAAAe2245ba0DDfAA5Be0CA21F1c53bE0b0Db554",
+        "sNoteProxy": "0x99aFEF3C58a5375824b7bE7fFf4080244Aa445aD",
+        "treasuryManager": "0x049bbb3868850AEb8d606c4080A92D02CfC0b042",
+        "treasuryManagerImpl": "0x2C5DE8E6833869DF26ff6E22be5D26975723B3C8"
+    },
+    "startBlock": 27189640,
+    "tokens": {
+        "WETH": {
+            "address": "0xd0a1e359811322d97991e03f863a0c30c2cf029c"
+        }
+    }
+}

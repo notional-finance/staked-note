@@ -11,6 +11,14 @@ TreasuryManagerConfig = {
         "wethIndex": 1,
         "noteIndex": 0
     },
+    "kovan": {
+        "vault": "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
+        "weth": "0xdFCeA9088c8A88A76FF74892C1457C17dfeef9C1",
+        "assetProxy": "0xf1ec01d6236d3cd881a0bf0130ea25fe4234003e",
+        "exchange": "0x4eacd0af335451709e1e7b570b8ea68edec8bc97",
+        "wethIndex": 1,
+        "noteIndex": 0
+    },
     "mainnet": {
         "vault": "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
         "weth": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",

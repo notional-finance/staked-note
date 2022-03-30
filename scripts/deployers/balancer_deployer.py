@@ -11,6 +11,15 @@ BalancerConfig = {
         "swapFeePercentage": 0.005e18, # 0.5%
         "oracleEnable": True
     },
+    "kovan": {
+        "factory": "0xA5bf2ddF098bb0Ef6d120C98217dD6B141c74EE0",
+        "weth": "0xdFCeA9088c8A88A76FF74892C1457C17dfeef9C1",
+        "name": "Staked NOTE Weighted Pool",
+        "symbol": "sNOTE-BPT",
+        "weights": [ 0.8e18, 0.2e18 ],
+        "swapFeePercentage": 0.005e18, # 0.5%
+        "oracleEnable": True        
+    },
     "mainnet": {
         "factory": "0xA5bf2ddF098bb0Ef6d120C98217dD6B141c74EE0",
         "weth": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",

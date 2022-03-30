@@ -11,6 +11,14 @@ SNoteConfig = {
         "owner": "0x2a956Fe94ff89D8992107c8eD4805c30ff1106ef",
         "coolDownSeconds": 100
     },
+    "kovan": {
+        "vault": "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
+        "weth": "0xdFCeA9088c8A88A76FF74892C1457C17dfeef9C1",
+        "wethIndex": 1,
+        "noteIndex": 0,
+        "owner": "0x2a956Fe94ff89D8992107c8eD4805c30ff1106ef",
+        "coolDownSeconds": 100
+    },
     "mainnet": {
         "vault": "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
         "weth": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",

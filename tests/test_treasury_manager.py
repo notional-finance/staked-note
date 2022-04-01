@@ -20,7 +20,7 @@ def test_trading_DAI_good_price():
     env.treasuryManager.setSlippageLimit(env.dai.address, 0.9e8, {"from": env.deployer})
     env.dai.transfer(env.treasuryManager.address, 10000e18, { "from": testAccounts.DAIWhale })
     env.weth.approve(env.exchangeV3.address, 2 ** 255, { "from": testAccounts.WETHWhale })
-    order = Order(env.assetProxy, env.treasuryManager.address, env.dai.address, 4000e18, env.weth.address, 1e18)
+    order = Order(env.assetProxy, env.treasuryManager.address, env.dai.address, 3600e18, env.weth.address, 1e18)
     DAIBefore = env.dai.balanceOf(env.treasuryManager.address)
     ETHBefore = env.weth.balanceOf(testAccounts.WETHWhale)
     env.exchangeV3.fillOrder(
@@ -31,7 +31,7 @@ def test_trading_DAI_good_price():
     )
     DAIAfter = env.dai.balanceOf(env.treasuryManager.address)
     ETHAfter = env.weth.balanceOf(testAccounts.WETHWhale)
-    assert DAIBefore - DAIAfter == 4000e18
+    assert DAIBefore - DAIAfter == 3600e18
     assert ETHBefore - ETHAfter == 1e18
 
 def test_trading_DAI_very_good_price():
@@ -336,3 +336,24 @@ def test_cancel_order_non_manager():
         env.treasuryManager.cancelOrder(order.getParams(), {"from": env.deployer})
     statusAfter = env.exchangeV3.getOrderInfo(order.getParams())[0]
     assert statusAfter == 3 # FILLABLE
+
+def test_invest_eth():
+    testAccounts = TestAccounts()
+    env = create_environment()
+    env.treasuryManager.setManager(testAccounts.testManager, { "from": env.deployer })
+    env.treasuryManager.approveToken(env.dai.address, 2 ** 255, { "from": env.deployer })
+    env.treasuryManager.approveBalancer({"from": env.deployer})
+    env.treasuryManager.setPriceOracle(env.dai.address, '0x6085b0a8f4c7ffa2e8ca578037792d6535d1e29b', {"from": env.deployer})
+    env.treasuryManager.setSlippageLimit(env.dai.address, 0.9e8, {"from": env.deployer})
+    env.weth.transfer(env.treasuryManager.address, 1e18, {"from": testAccounts.WETHWhale})
+    env.note.approve(env.balancerVault.address, 2 ** 255, {"from": testAccounts.WETHWhale})
+    # Initialize price oracle
+    env.buyNOTE(1e8, testAccounts.WETHWhale)
+    env.sellNOTE(1e8, testAccounts.WETHWhale)
+    chain.sleep(3600)
+    chain.mine()
+    bptBefore = env.balancerPool.balanceOf(env.sNOTE.address)
+    assert pytest.approx(bptBefore, abs=1000) == 144955932735535206728
+    env.treasuryManager.investWETHAndNOTE(0.1e18, 0, 0, {"from": testAccounts.testManager})
+    bptAfter = env.balancerPool.balanceOf(env.sNOTE.address)
+    assert pytest.approx(bptAfter, abs=1000) == 145099964881902829437

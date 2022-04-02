@@ -83,7 +83,7 @@
         "sNoteImpl": "0xA8C3aF8AAd64A3B3Ea18a718591A5a74A9f0AbA1",
         "sNoteProxy": "0x9AcDB8100Aa74913f7702bf8b43128f36E6e3f22",
         "treasuryManager": "0x8638f94155c333fd7087c012Dc51B0528bb06035",
-        "treasuryManagerImpl": "0x2C5DE8E6833869DF26ff6E22be5D26975723B3C8"
+        "treasuryManagerImpl": "0x6A8F72Dbf0A9Eab4c0ed7c631875781114bc5A1B"
     },
     "tokens": {
         "COMP": {

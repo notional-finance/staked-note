@@ -115,6 +115,11 @@ contract TreasuryManager is
         IERC20(token).safeApprove(ASSET_PROXY, amount);
     }
 
+    function approveBalancer() external onlyOwner {
+        NOTE.safeApprove(address(BALANCER_VAULT), type(uint256).max);
+        IERC20(address(WETH)).safeApprove(address(BALANCER_VAULT), type(uint256).max);
+    }
+
     function setPriceOracle(address tokenAddress, address oracleAddress)
         external
         onlyOwner

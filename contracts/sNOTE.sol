@@ -361,6 +361,9 @@ contract sNOTE is
             )
         );
 
+        // Unstake BPT
+        LIQUIDITY_GAUGE.withdraw(bptExitAmount, false);
+
         uint256 wethAfter = address(assets[WETH_INDEX]) == address(0)
             ? msg.sender.balance
             : IERC20(address(assets[WETH_INDEX])).balanceOf(msg.sender);

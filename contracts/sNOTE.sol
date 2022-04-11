@@ -28,7 +28,7 @@ contract sNOTE is
     bytes32 public immutable NOTE_ETH_POOL_ID;
     ILiquidityGauge public immutable LIQUIDITY_GAUGE;
     address public immutable TREASURY_MANAGER_CONTRACT;
-    IBalanceMinter public immutable BALANCER_MINTER;
+    IBalancerMinter public immutable BALANCER_MINTER;
     ERC20 public immutable BALANCER_TOKEN;
 
     /// @notice Balancer token indexes
@@ -100,7 +100,7 @@ contract sNOTE is
         uint256 _noteIndex,
         ILiquidityGauge _liquidityGauge,
         address _treasuryManagerContract,
-        IBalanceMinter _balancerMinter
+        IBalancerMinter _balancerMinter
     ) initializer {
         // Validate that the pool exists
         // prettier-ignore

@@ -229,7 +229,7 @@ contract TreasuryManager is
             memory queries = new IPriceOracle.OracleAverageQuery[](1);
 
         queries[0].variable = IPriceOracle.Variable.PAIR_PRICE;
-        queries[0].secs = 3600; // last hour
+        queries[0].secs = 900; // 15 minutes
         queries[0].ago = 0; // now
 
         // Gets the balancer time weighted average price denominated in ETH

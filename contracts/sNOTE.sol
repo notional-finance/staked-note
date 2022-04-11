@@ -10,6 +10,8 @@ import "@openzeppelin-upgradeable/contracts/token/ERC20/extensions/ERC20VotesUpg
 import {IVault, IAsset} from "../interfaces/balancer/IVault.sol";
 import "../interfaces/balancer/IWeightedPool.sol";
 import "../interfaces/balancer/IPriceOracle.sol";
+import "../interfaces/balancer/ILiquidityGauge.sol";
+import "../interfaces/balancer/IBalancerMinter.sol";
 
 contract sNOTE is
     ERC20VotesUpgradeable,
@@ -24,6 +26,10 @@ contract sNOTE is
     ERC20 public immutable BALANCER_POOL_TOKEN;
     ERC20 public immutable WETH;
     bytes32 public immutable NOTE_ETH_POOL_ID;
+    ILiquidityGauge public immutable LIQUIDITY_GAUGE;
+    address public immutable TREASURY_MANAGER_CONTRACT;
+    IBalanceMinter public immutable BALANCER_MINTER;
+    ERC20 public immutable BALANCER_TOKEN;
 
     /// @notice Balancer token indexes
     /// Balancer requires token addresses to be sorted BAL#102
@@ -76,12 +82,25 @@ contract sNOTE is
         uint256 bptChangeAmount
     );
 
+    event ClaimedBAL(uint256 balAmount);
+
+    modifier onlyManagerContract() {
+        require(
+            TREASURY_MANAGER_CONTRACT == msg.sender,
+            "Treasury manager required"
+        );
+        _;
+    }
+
     /// @notice Constructor sets immutable contract addresses
     constructor(
         IVault _balancerVault,
         bytes32 _noteETHPoolId,
         uint256 _wethIndex,
-        uint256 _noteIndex
+        uint256 _noteIndex,
+        ILiquidityGauge _liquidityGauge,
+        address _treasuryManagerContract,
+        IBalanceMinter _balancerMinter
     ) initializer {
         // Validate that the pool exists
         // prettier-ignore
@@ -99,6 +118,10 @@ contract sNOTE is
         NOTE_ETH_POOL_ID = _noteETHPoolId;
         BALANCER_VAULT = _balancerVault;
         BALANCER_POOL_TOKEN = ERC20(poolAddress);
+        LIQUIDITY_GAUGE = _liquidityGauge;
+        TREASURY_MANAGER_CONTRACT = _treasuryManagerContract;
+        BALANCER_MINTER = _balancerMinter;
+        BALANCER_TOKEN = ERC20(_balancerMinter.getBalancerToken());
     }
 
     /// @notice Initializes sNOTE ERC20 metadata and owner
@@ -189,6 +212,10 @@ contract sNOTE is
             bptAmount
         );
         _mint(msg.sender, bptAmount);
+
+        // Stake BPT
+        LIQUIDITY_GAUGE.deposit(bptAmount, address(this), false);
+
         (uint256 wethAmount, uint256 noteAmount) = _getTokenBalances(bptAmount);
         emit SNoteMinted(msg.sender, wethAmount, noteAmount, bptAmount);
     }
@@ -295,6 +322,9 @@ contract sNOTE is
 
         // Balancer pool token amounts must increase
         _mint(msg.sender, bptChange);
+
+        // Stake BPT
+        LIQUIDITY_GAUGE.deposit(bptChange, address(this), false);
 
         emit SNoteMinted(
             msg.sender,
@@ -403,6 +433,22 @@ contract sNOTE is
 
             _exitPool(assets, minAmountsOut, bptToRedeem);
         }
+    }
+
+    function claimBAL() external nonReentrant onlyManagerContract {
+        uint256 balBefore = BALANCER_TOKEN.balanceOf(address(this));
+        BALANCER_MINTER.mint(address(LIQUIDITY_GAUGE));
+        uint256 balAfter = BALANCER_TOKEN.balanceOf(address(this));
+        emit ClaimedBAL(balAfter - balBefore);
+    }
+
+    function stakeAll() external onlyOwner {
+        uint256 bptBalance = BALANCER_POOL_TOKEN.balanceOf(address(this));
+        LIQUIDITY_GAUGE.deposit(
+            bptBalance,
+            address(this),
+            false
+        );
     }
 
     /** External View Methods **/

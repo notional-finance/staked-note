@@ -11,7 +11,10 @@ from brownie import (
     nProxy, 
     EmptyProxy, 
     TreasuryManager, 
-    ChainlinkAdapter
+    ChainlinkAdapter,
+    MockBalancerMinter,
+    MockLiquidityGauge,
+    MockERC20
 )
 from brownie.network.state import Chain
 from brownie.convert.datatypes import Wei
@@ -98,8 +101,8 @@ class Order:
         self.salt = ts
         self.makerAssetData = self.encodeAssetData(assetProxy, makerToken)
         self.takerAssetData = self.encodeAssetData(assetProxy, takerToken)
-        self.makerFeeAssetData = 0x0
-        self.takerFeeAssetData = 0x0
+        self.makerFeeAssetData = self.encodeAssetData(assetProxy, makerToken)
+        self.takerFeeAssetData = self.encodeAssetData(assetProxy, takerToken)
 
     def encodeAssetData(self, assetProxy, token):
         return assetProxy.ERC20Token.encode_input(token)
@@ -122,8 +125,8 @@ class Order:
             self.senderAddress,
             int(self.makerAssetAmount),
             int(self.takerAssetAmount),
-            self.makerFee,
-            self.takerFee,
+            int(self.makerFee),
+            int(self.takerFee),
             self.expirationTimeSeconds,
             self.salt,
             self.makerAssetData,
@@ -137,7 +140,7 @@ class TestAccounts:
     def __init__(self) -> None:
         self.DAIWhale = accounts.at("0x6dfaf865a93d3b0b5cfd1b4db192d1505676645b", force=True) # A good source of DAI
         self.cDAIWhale = accounts.at("0x33b890d6574172e93e58528cd99123a88c0756e9", force=True) # A good source of cDAI
-        self.ETHWhale = accounts.at("0x7D24796f7dDB17d73e8B1d0A3bbD103FBA2cb2FE", force=True) # A good source of ETH
+        self.ETHWhale = accounts.at("0xAE527cE8c5B66D8900B6d1E978396615C168e251", force=True) # A good source of ETH
         self.cETHWhale = accounts.at("0x1a1cd9c606727a7400bb2da6e4d5c70db5b4cade", force=True) # A good source of cETH
         self.NOTEWhale = accounts.at("0x22341fB5D92D3d801144aA5A925F401A91418A05", force=True)
         self.WETHWhale = accounts.at("0x6555e1cc97d3cba6eaddebbcd7ca51d75771e0b8", force=True)
@@ -157,6 +160,8 @@ class Environment:
         self.usdc = self.loadERC20Token("USDC")
         self.wbtc = self.loadERC20Token("WBTC")
         self.comp = self.loadERC20Token("COMP")
+        self.bal = self.deployBalancerToken()
+        self.treasuryManager = self.deployEmptyProxy()
         if self.config['sNOTEPoolAddress']:
             self.balancerPool = self.loadBalancerPool(self.config['sNOTEPoolAddress'])
             self.poolId = self.config['sNOTEPoolId']
@@ -164,9 +169,11 @@ class Environment:
         else:
             self.sNOTEProxy = self.deployEmptyProxy()
             self.deployBalancerPool(self.config['balancerPoolConfig'], self.sNOTEProxy.address, self.deployer)
-            self.sNOTE = self.upgrade_sNOTE()
+            self.sNOTE = self.upgrade_sNOTE(self.treasuryManager)
             self.initBalancerPool(self.deployer)
-        self.treasuryManager = self.deployTreasuryManager()
+        # Stake all BPT
+        self.sNOTE.stakeAll({"from": self.deployer})
+        self.treasuryManager = self.upgradeTreasuryManager()
         self.DAIToken = self.loadERC20Token("DAI")
         self.exchangeV3 = self.loadExchangeV3(self.config['ExchangeV3'])
         self.assetProxy = interface.ERC20Proxy(self.config["ExchangeV3"])
@@ -216,12 +223,21 @@ class Environment:
         proxy = nProxy.deploy(emptyProxyImpl.address, bytes(), {"from": self.deployer})
         return Contract.from_abi("Proxy", proxy.address, EmptyProxy.abi)
 
-    def upgrade_sNOTE(self):
+    def deployBalancerToken(self):
+        return MockERC20.deploy("Mock Balancer Token", "BAL", 18, 0, {"from": self.deployer})
+
+    def upgrade_sNOTE(self, treasuryManager):
+        balancerMinter = MockBalancerMinter.deploy(self.bal, {"from": self.deployer})
+        liquidityGauge = MockLiquidityGauge.deploy({"from": self.deployer})
+
         sNOTEImpl = sNOTE.deploy(
             self.balancerVault.address,
             self.poolId,
             0,
             1,
+            liquidityGauge,
+            treasuryManager,
+            balancerMinter,
             {"from": self.deployer}
         )
 
@@ -272,7 +288,7 @@ class Environment:
             }
         )
     
-    def deployTreasuryManager(self):
+    def upgradeTreasuryManager(self):
         treasuryManager = TreasuryManager.deploy(
             EnvironmentConfig["Notional"],
             EnvironmentConfig["WETH"],
@@ -285,9 +301,10 @@ class Environment:
             0, 1,
             { "from": self.deployer }
         )
+
         initData = treasuryManager.initialize.encode_input(self.deployer, self.deployer, SECONDS_IN_DAY)
-        proxy = nProxy.deploy(treasuryManager.address, initData, {"from": self.deployer})
-        return Contract.from_abi("TreasuryManagerProxy", proxy.address, TreasuryManager.abi)
+        self.treasuryManager.upgradeToAndCall(treasuryManager, initData, {'from': self.deployer})
+        return Contract.from_abi("TreasuryManagerProxy", self.treasuryManager.address, TreasuryManager.abi)
 
     def deployCOMPOracle(self):
         return ChainlinkAdapter.deploy(
@@ -329,21 +346,9 @@ class Environment:
 
 def create_environment():
     testAccounts = TestAccounts()
+    testAccounts.ETHWhale.transfer(testAccounts.NOTEWhale, 100e18)
     return Environment(EnvironmentConfig, testAccounts.NOTEWhale)
-
+    
 def main():
     env = create_environment()
     testAccounts = TestAccounts()
-    env.treasuryManager.setPriceOracle(env.dai.address, '0x6085b0a8f4c7ffa2e8ca578037792d6535d1e29b', {"from": env.deployer})
-    env.treasuryManager.setPriceOracle(env.usdc.address, '0x68225f47813af66f186b3714ffe6a91850bc76b4', {"from": env.deployer})
-    env.treasuryManager.setPriceOracle(env.wbtc.address, '0x10aae34011c256a9e63ab5ac50154c2539c0f51d', {"from": env.deployer})
-    env.treasuryManager.setPriceOracle(env.comp.address, env.COMPOracle.address, {"from": env.deployer})
-    env.treasuryManager.setSlippageLimit(env.dai.address, 0.8e8, {"from": env.deployer})
-    env.treasuryManager.setSlippageLimit(env.usdc.address, 0.8e8, {"from": env.deployer})
-    env.treasuryManager.setSlippageLimit(env.wbtc.address, 0.8e8, {"from": env.deployer})
-    env.treasuryManager.setSlippageLimit(env.comp.address, 0.8e8, {"from": env.deployer})
-    env.weth.approve(env.balancerVault.address, 2 ** 255, {"from": testAccounts.WETHWhale})
-    env.note.approve(env.sNOTEProxy.address, 2 ** 255, {"from": testAccounts.WETHWhale})
-    env.note.approve(env.balancerVault.address, 2 ** 255, {"from": testAccounts.WETHWhale})
-    
-    env.buyNOTE(1e8, testAccounts.WETHWhale)

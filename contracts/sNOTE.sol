@@ -442,10 +442,12 @@ contract sNOTE is
         uint256 balBefore = BALANCER_TOKEN.balanceOf(address(this));
         BALANCER_MINTER.mint(address(LIQUIDITY_GAUGE));
         uint256 balAfter = BALANCER_TOKEN.balanceOf(address(this));
+        uint256 claimAmount = balAfter - balBefore;
+        BALANCER_TOKEN.safeTransfer(TREASURY_MANAGER_CONTRACT, claimAmount);
         emit ClaimedBAL(balAfter - balBefore);
     }
 
-    function stakeAll() external onlyOwner {
+    function stakeAll() external nonReentrant onlyOwner {
         uint256 bptBalance = BALANCER_POOL_TOKEN.balanceOf(address(this));
         LIQUIDITY_GAUGE.deposit(
             bptBalance,

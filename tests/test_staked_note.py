@@ -28,6 +28,9 @@ def test_upgrade_snote():
         env.poolId,
         0,
         1,
+        env.sNOTE.LIQUIDITY_GAUGE(),
+        env.sNOTE.TREASURY_MANAGER_CONTRACT(),
+        env.sNOTE.BALANCER_MINTER(),
         {"from": env.deployer}
     )
 

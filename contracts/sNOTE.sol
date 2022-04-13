@@ -438,6 +438,7 @@ contract sNOTE is
         }
     }
 
+    /// @notice Allows the treasury manager contract to claim BAL from the liquidity gauge   
     function claimBAL() external nonReentrant onlyManagerContract {
         uint256 balBefore = BALANCER_TOKEN.balanceOf(address(this));
         BALANCER_MINTER.mint(address(LIQUIDITY_GAUGE));
@@ -447,6 +448,7 @@ contract sNOTE is
         emit ClaimedBAL(balAfter - balBefore);
     }
 
+    /// @notice Deposits all BPT owned by the sNOTE contract into the liquidity gauge
     function stakeAll() external nonReentrant onlyOwner {
         uint256 bptBalance = BALANCER_POOL_TOKEN.balanceOf(address(this));
         LIQUIDITY_GAUGE.deposit(

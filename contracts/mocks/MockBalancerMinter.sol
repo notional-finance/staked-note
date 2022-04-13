@@ -2,20 +2,20 @@
 pragma solidity =0.8.11;
 
 import "../../interfaces/balancer/IBalancerMinter.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract MockBalancerMinter is IBalancerMinter {
-    address public currentGauge;
-    address public balancerToken;
+    ERC20 public balancerToken;
 
-    constructor(address _balancerToken) {
+    constructor(ERC20 _balancerToken) {
         balancerToken = _balancerToken;
     }
 
     function mint(address gauge) external override {
-        currentGauge = gauge;
+        balancerToken.transfer(msg.sender, 100e18);
     }
 
     function getBalancerToken() external override returns (address) {
-        return balancerToken;
+        return address(balancerToken);
     }
 }

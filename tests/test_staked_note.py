@@ -123,7 +123,11 @@ def test_mint_from_bpt():
 
     bptBalance = env.balancerPool.balanceOf(testAccounts.ETHWhale)
     env.balancerPool.approve(env.sNOTE.address, 2**255-1, {"from": testAccounts.ETHWhale})
+    gaugeBefore = env.liquidityGauge.currentBalance()
     txn = env.sNOTE.mintFromBPT(bptBalance, {"from": testAccounts.ETHWhale})
+    gaugeAfter = env.liquidityGauge.currentBalance()
+    assert (gaugeAfter - gaugeBefore) == bptBalance
+
     assert txn.events["SNoteMinted"]["account"] == testAccounts.ETHWhale
     assert pytest.approx(txn.events["SNoteMinted"]["wethChangeAmount"], abs=1000) == 158416152317811103
     assert pytest.approx(txn.events["SNoteMinted"]["noteChangeAmount"], abs=1000) == 80000156
@@ -196,7 +200,10 @@ def test_mint_from_note_and_eth():
     env.note.transfer(testAccounts.ETHWhale, 100e8, {"from": env.deployer})
     env.note.approve(env.sNOTE.address, 2**256-1, {"from": testAccounts.ETHWhale})
 
-    env.sNOTE.mintFromETH(1e8, 0, {"from": testAccounts.ETHWhale, "value": 1e18})
+    gaugeBefore = env.liquidityGauge.currentBalance()
+    txn = env.sNOTE.mintFromETH(1e8, 0, {"from": testAccounts.ETHWhale, "value": 1e18})
+    gaugeAfter = env.liquidityGauge.currentBalance()
+    assert (gaugeAfter - gaugeBefore) == txn.events['SNoteMinted'][0]['bptChangeAmount']
     assert env.sNOTE.balanceOf(testAccounts.ETHWhale) > 0
 
 def test_mint_from_note():
@@ -205,7 +212,10 @@ def test_mint_from_note():
     env.note.transfer(testAccounts.ETHWhale, 100e8, {"from": env.deployer})
     env.note.approve(env.sNOTE.address, 2**256-1, {"from": testAccounts.ETHWhale})
 
-    env.sNOTE.mintFromETH(1e8, 0,{"from": testAccounts.ETHWhale, "value": 0})
+    gaugeBefore = env.liquidityGauge.currentBalance()
+    txn = env.sNOTE.mintFromETH(1e8, 0,{"from": testAccounts.ETHWhale, "value": 0})
+    gaugeAfter = env.liquidityGauge.currentBalance()
+    assert (gaugeAfter - gaugeBefore) == txn.events['SNoteMinted'][0]['bptChangeAmount']
     assert env.sNOTE.balanceOf(testAccounts.ETHWhale) > 0
 
 def test_mint_from_eth():
@@ -214,7 +224,10 @@ def test_mint_from_eth():
     env.note.transfer(testAccounts.ETHWhale, 100e8, {"from": env.deployer})
     env.note.approve(env.sNOTE.address, 2**256-1, {"from": testAccounts.ETHWhale})
 
-    env.sNOTE.mintFromETH(0, 0, {"from": testAccounts.ETHWhale, "value": 1e18})
+    gaugeBefore = env.liquidityGauge.currentBalance()
+    txn = env.sNOTE.mintFromETH(0, 0, {"from": testAccounts.ETHWhale, "value": 1e18})
+    gaugeAfter = env.liquidityGauge.currentBalance()
+    assert (gaugeAfter - gaugeBefore) == txn.events['SNoteMinted'][0]['bptChangeAmount']
     assert env.sNOTE.balanceOf(testAccounts.ETHWhale) > 0
 
 def test_mint_from_weth():
@@ -222,7 +235,10 @@ def test_mint_from_weth():
     testAccounts = TestAccounts()
     env.weth.approve(env.sNOTE.address, 2**255 - 1, {"from": testAccounts.WETHWhale})
 
-    env.sNOTE.mintFromWETH(0, 1e18, 0, {"from": testAccounts.WETHWhale})
+    gaugeBefore = env.liquidityGauge.currentBalance()
+    txn = env.sNOTE.mintFromWETH(0, 1e18, 0, {"from": testAccounts.WETHWhale})
+    gaugeAfter = env.liquidityGauge.currentBalance()
+    assert (gaugeAfter - gaugeBefore) == txn.events['SNoteMinted'][0]['bptChangeAmount']
     assert env.sNOTE.balanceOf(testAccounts.WETHWhale) > 0
 
 def test_mint_from_weth_and_note():
@@ -232,7 +248,10 @@ def test_mint_from_weth_and_note():
     env.note.approve(env.sNOTE.address, 2**256 - 1, {"from": testAccounts.WETHWhale})
     env.weth.approve(env.sNOTE.address, 2**255 - 1, {"from": testAccounts.WETHWhale})
 
+    gaugeBefore = env.liquidityGauge.currentBalance()
     txn = env.sNOTE.mintFromWETH(1e8, 1e18, 0, {"from": testAccounts.WETHWhale})
+    gaugeAfter = env.liquidityGauge.currentBalance()
+    assert (gaugeAfter - gaugeBefore) == txn.events['SNoteMinted'][0]['bptChangeAmount']
     assert txn.events["SNoteMinted"]["account"] == testAccounts.WETHWhale
     assert txn.events["SNoteMinted"]["wethChangeAmount"] == 1e18
     assert txn.events["SNoteMinted"]["noteChangeAmount"] == 1e8
@@ -448,4 +467,9 @@ def test_get_voting_power_single_staker_price_decreasing_slow():
     votingPower = env.sNOTE.getVotingPower(env.sNOTE.totalSupply())
     assert votingPower < noteBalance and votingPower == 11399580460
 
-
+def testClaimBAL():
+    env = create_environment()
+    testAccounts = TestAccounts()
+    assert env.bal.balanceOf(env.treasuryManager) == 0
+    env.sNOTE.claimBAL({"from": env.treasuryManager})
+    assert env.bal.balanceOf(env.treasuryManager) == 100e18

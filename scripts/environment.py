@@ -227,17 +227,18 @@ class Environment:
         return MockERC20.deploy("Mock Balancer Token", "BAL", 18, 0, {"from": self.deployer})
 
     def upgrade_sNOTE(self, treasuryManager):
-        balancerMinter = MockBalancerMinter.deploy(self.bal, {"from": self.deployer})
-        liquidityGauge = MockLiquidityGauge.deploy({"from": self.deployer})
+        self.balancerMinter = MockBalancerMinter.deploy(self.bal, {"from": self.deployer})
+        self.bal.transfer(self.balancerMinter.address, 10000000e18, {"from": self.deployer})
+        self.liquidityGauge = MockLiquidityGauge.deploy({"from": self.deployer})
 
         sNOTEImpl = sNOTE.deploy(
             self.balancerVault.address,
             self.poolId,
             0,
             1,
-            liquidityGauge,
+            self.liquidityGauge,
             treasuryManager,
-            balancerMinter,
+            self.balancerMinter,
             {"from": self.deployer}
         )
 

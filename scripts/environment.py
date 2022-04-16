@@ -172,7 +172,7 @@ class Environment:
             self.sNOTE = self.upgrade_sNOTE(self.treasuryManager)
             self.initBalancerPool(self.deployer)
         # Stake all BPT
-        self.sNOTE.stakeAll({"from": self.deployer})
+        self.sNOTE.approveAndStakeAll({"from": self.deployer})
         self.treasuryManager = self.upgradeTreasuryManager()
         self.DAIToken = self.loadERC20Token("DAI")
         self.exchangeV3 = self.loadExchangeV3(self.config['ExchangeV3'])
@@ -228,8 +228,11 @@ class Environment:
 
     def upgrade_sNOTE(self, treasuryManager):
         self.balancerMinter = MockBalancerMinter.deploy(self.bal, {"from": self.deployer})
+        self.liquidityGauge = MockLiquidityGauge.deploy(self.balancerPool.address, {"from": self.deployer})
+
+        # self.deployer gets all of the tokens initially, need to give some to minter and gauge
         self.bal.transfer(self.balancerMinter.address, 10000000e18, {"from": self.deployer})
-        self.liquidityGauge = MockLiquidityGauge.deploy({"from": self.deployer})
+        self.liquidityGauge.transfer(self.liquidityGauge.address, 10000000e18, {"from": self.deployer})
 
         sNOTEImpl = sNOTE.deploy(
             self.balancerVault.address,

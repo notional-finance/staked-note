@@ -352,8 +352,8 @@ def test_invest_eth():
     env.sellNOTE(1e8, testAccounts.WETHWhale)
     chain.sleep(3600)
     chain.mine()
-    bptBefore = env.balancerPool.balanceOf(env.sNOTE.address)
+    bptBefore = env.liquidityGauge.balanceOf(env.sNOTE.address)
     assert pytest.approx(bptBefore, abs=1000) == 144955932735535206728
     env.treasuryManager.investWETHAndNOTE(0.1e18, 0, 0, {"from": testAccounts.testManager})
-    bptAfter = env.balancerPool.balanceOf(env.sNOTE.address)
+    bptAfter = env.liquidityGauge.balanceOf(env.sNOTE.address)
     assert pytest.approx(bptAfter, abs=1000) == 145099964881902829437

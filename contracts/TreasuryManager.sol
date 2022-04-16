@@ -12,6 +12,7 @@ import {NotionalTreasuryAction} from "../interfaces/notional/NotionalTreasuryAct
 import {WETH9} from "../interfaces/WETH9.sol";
 import "../interfaces/balancer/IPriceOracle.sol";
 import "../interfaces/0x/IExchangeV3.sol";
+import "../interfaces/notional/IStakedNote.sol";
 
 contract TreasuryManager is
     EIP1271Wallet,
@@ -28,7 +29,7 @@ contract TreasuryManager is
     IERC20 public immutable NOTE;
     IVault public immutable BALANCER_VAULT;
     ERC20 public immutable BALANCER_POOL_TOKEN;
-    address public immutable sNOTE;
+    IStakedNote public immutable sNOTE;
     bytes32 public immutable NOTE_ETH_POOL_ID;
     address public immutable ASSET_PROXY;
     IExchangeV3 public immutable EXCHANGE;
@@ -75,7 +76,7 @@ contract TreasuryManager is
         IVault _balancerVault,
         bytes32 _noteETHPoolId,
         IERC20 _note,
-        address _sNOTE,
+        IStakedNote _sNOTE,
         address _assetProxy,
         IExchangeV3 _exchange,
         uint256 _wethIndex,
@@ -239,7 +240,7 @@ contract TreasuryManager is
         BALANCER_VAULT.joinPool(
             NOTE_ETH_POOL_ID,
             address(this),
-            sNOTE, // sNOTE will receive the BPT
+            address(sNOTE), // sNOTE will receive the BPT
             IVault.JoinPoolRequest(
                 assets,
                 maxAmountsIn,
@@ -251,6 +252,9 @@ contract TreasuryManager is
                 false // Don't use internal balances
             )
         );
+
+        // Make sure the donated BPT is staked
+        sNOTE.stakeAll();        
 
         uint256 noteSpotPrice = _getNOTESpotPrice();
 

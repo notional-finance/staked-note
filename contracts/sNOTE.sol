@@ -92,6 +92,14 @@ contract sNOTE is
         _;
     }
 
+    modifier ownerOrManagerContract() {
+        require(
+            TREASURY_MANAGER_CONTRACT == msg.sender || owner == msg.sender,
+            "Owner or treasury manager required"
+        );
+        _;
+    }
+
     /// @notice Constructor sets immutable contract addresses
     constructor(
         IVault _balancerVault,
@@ -170,7 +178,7 @@ contract sNOTE is
         );
         lastShortfallWithdrawTime = blockTime;
 
-        uint256 bptBalance = BALANCER_POOL_TOKEN.balanceOf(address(this));
+        uint256 bptBalance = LIQUIDITY_GAUGE.balanceOf(address(this));
         uint256 maxBPTWithdraw = (bptBalance * MAX_SHORTFALL_WITHDRAW) / 100;
         // Do not allow a withdraw of more than the MAX_SHORTFALL_WITHDRAW percentage. Specifically don't
         // revert here since there may be a delay between when governance issues the token amount and when
@@ -212,9 +220,6 @@ contract sNOTE is
             bptAmount
         );
         _mint(msg.sender, bptAmount);
-
-        // Stake BPT
-        LIQUIDITY_GAUGE.deposit(bptAmount, address(this), false);
 
         (uint256 wethAmount, uint256 noteAmount) = _getTokenBalances(bptAmount);
         emit SNoteMinted(msg.sender, wethAmount, noteAmount, bptAmount);
@@ -323,9 +328,6 @@ contract sNOTE is
         // Balancer pool token amounts must increase
         _mint(msg.sender, bptChange);
 
-        // Stake BPT
-        LIQUIDITY_GAUGE.deposit(bptChange, address(this), false);
-
         emit SNoteMinted(
             msg.sender,
             maxAmountsIn[WETH_INDEX],
@@ -339,6 +341,9 @@ contract sNOTE is
         uint256[] memory minAmountsOut,
         uint256 bptExitAmount
     ) internal {
+        // Unstake BPT
+        LIQUIDITY_GAUGE.withdraw(bptExitAmount, false);
+
         uint256 wethBefore = address(assets[WETH_INDEX]) == address(0)
             ? msg.sender.balance
             : IERC20(address(assets[WETH_INDEX])).balanceOf(msg.sender);
@@ -360,9 +365,6 @@ contract sNOTE is
                 false // Don't use internal balances
             )
         );
-
-        // Unstake BPT
-        LIQUIDITY_GAUGE.withdraw(bptExitAmount, false);
 
         uint256 wethAfter = address(assets[WETH_INDEX]) == address(0)
             ? msg.sender.balance
@@ -463,7 +465,7 @@ contract sNOTE is
     }
 
     /// @notice Deposits all BPT owned by the sNOTE contract into the liquidity gauge
-    function stakeAll() external nonReentrant onlyOwner {
+    function stakeAll() external nonReentrant ownerOrManagerContract {
         _stakeAll();
     }
 
@@ -478,7 +480,7 @@ contract sNOTE is
         uint256 _totalSupply = totalSupply();
         if (_totalSupply == 0) return 0;
 
-        uint256 bptBalance = BALANCER_POOL_TOKEN.balanceOf(address(this));
+        uint256 bptBalance = LIQUIDITY_GAUGE.balanceOf(address(this));
         // BPT and sNOTE are both in 18 decimal precision so no conversion required
         return (bptBalance * sNOTEAmount) / _totalSupply;
     }
@@ -511,7 +513,7 @@ contract sNOTE is
         // this formula to calculate noteAmount
         // (bptBalance * 0.8) * bptPrice = notePrice * noteAmount
         // noteAmount = (bptPrice * bptBalance * 0.8) / notePrice
-        uint256 bptBalance = BALANCER_POOL_TOKEN.balanceOf(address(this));
+        uint256 bptBalance = LIQUIDITY_GAUGE.balanceOf(address(this));
         // This calculation is (NOTE tokens are in 8 decimal precision):
         // (1e18 * 1e18 * 1e2) / (1e18 * 1e2 * 1e10) == 1e8
         uint256 noteAmount = (bptPrice * bptBalance * 80) /
@@ -557,6 +559,10 @@ contract sNOTE is
     /// @param account account to mint tokens to
     /// @param bptAmount the number of BPT tokens being minted by the account
     function _mint(address account, uint256 bptAmount) internal override {
+
+        // Stake BPT
+        LIQUIDITY_GAUGE.deposit(bptAmount, address(this), false);
+
         // Immediately after minting, we need to satisfy the equality:
         // (sNOTEToMint * bptBalance) / (totalSupply + sNOTEToMint) == bptAmount
 
@@ -569,7 +575,7 @@ contract sNOTE is
 
         // NOTE: at this point the BPT has already been transferred into the sNOTE contract, so this
         // bptBalance amount includes bptAmount.
-        uint256 bptBalance = BALANCER_POOL_TOKEN.balanceOf(address(this));
+        uint256 bptBalance = LIQUIDITY_GAUGE.balanceOf(address(this));
         uint256 _totalSupply = totalSupply();
         uint256 sNOTEToMint;
         if (_totalSupply == 0) {

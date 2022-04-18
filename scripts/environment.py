@@ -12,9 +12,6 @@ from brownie import (
     EmptyProxy, 
     TreasuryManager, 
     ChainlinkAdapter,
-    MockBalancerMinter,
-    MockLiquidityGauge,
-    MockERC20
 )
 from brownie.network.state import Chain
 from brownie.convert.datatypes import Wei
@@ -37,10 +34,13 @@ EnvironmentConfig = {
     "USDC": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
     "WBTC": "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
     "COMP": "0xc00e94cb662c3520282e6f5717214004a7f26888",
+    "BAL": "0xba100000625a3754423978a60c9317c58a424e3D",
     "COMP_USD_Oracle": "0xdbd020caef83efd542f4de03e3cf0c28a4428bd5",
     "ETH_USD_Oracle": "0x5f4ec3df9cbd43714fe2740f5e3616155c5b8419",
     "Notional": "0x1344a36a1b56144c3bc62e7757377d288fde0369",
     "ERC20AssetProxy": "0x95E6F48254609A6ee006F7D493c8e5fB97094ceF",
+    "LiquidityGauge": "0x40ac67ea5bd1215d99244651cc71a03468bce6c0",
+    "BalancerMinter": "0x239e55F427D44C3cc793f49bFB507ebe76638a2b",
     "ExchangeV3": "0x61935cbdd02287b511119ddb11aeb42f1593b7ef",
     "balancerPoolConfig": {
         "name": "Staked NOTE Weighted Pool",
@@ -54,8 +54,9 @@ EnvironmentConfig = {
         "oracleEnable": True,
         "initBalances": [ Wei(20e18), Wei(100e8) ]
     },
-    'sNOTEPoolAddress': None,
-    'sNOTEPoolId': None,
+    'sNOTEPoolAddress': "0x5122e01d819e58bb2e22528c0d68d310f0aa6fd7",
+    'sNOTEPoolId': '0x5122e01d819e58bb2e22528c0d68d310f0aa6fd7000200000000000000000163',
+    'sNOTE': '0x38DE42F4BA8a35056b33A746A6b45bE9B1c3B9d2',
     'sNOTEConfig': {
         'owner': '0x22341fB5D92D3d801144aA5A925F401A91418A05',
         'coolDownSeconds': 100
@@ -160,18 +161,21 @@ class Environment:
         self.usdc = self.loadERC20Token("USDC")
         self.wbtc = self.loadERC20Token("WBTC")
         self.comp = self.loadERC20Token("COMP")
-        self.bal = self.deployBalancerToken()
+        self.bal = self.loadERC20Token("BAL")
         self.treasuryManager = self.deployEmptyProxy()
         if self.config['sNOTEPoolAddress']:
             self.balancerPool = self.loadBalancerPool(self.config['sNOTEPoolAddress'])
             self.poolId = self.config['sNOTEPoolId']
             self.sNOTE = self.load_sNOTE(self.config['sNOTE'])
+            self.sNOTEProxy = self.load_sNOTE(self.config['sNOTE'])
         else:
+            # This is a fresh deployment of sNOTE
             self.sNOTEProxy = self.deployEmptyProxy()
             self.deployBalancerPool(self.config['balancerPoolConfig'], self.sNOTEProxy.address, self.deployer)
-            self.sNOTE = self.upgrade_sNOTE(self.treasuryManager)
+            self.sNOTE = self.upgrade_sNOTE(self.treasuryManager, True)
             self.initBalancerPool(self.deployer)
         # Stake all BPT
+        self.upgrade_sNOTE(self.treasuryManager, False)
         self.sNOTE.approveAndStakeAll({"from": self.deployer})
         self.treasuryManager = self.upgradeTreasuryManager()
         self.DAIToken = self.loadERC20Token("DAI")
@@ -212,6 +216,16 @@ class Environment:
             abi = json.load(f)
         return Contract.from_abi('Weighted Pool 2 Token Factory', address, abi)
 
+    def loadBalancerMinter(self, address):
+        with open("./abi/balancer/BalMinter.json", "r") as f:
+            abi = json.load(f)
+        return Contract.from_abi('BalancerMinter', address, abi)
+
+    def loadLiquidityGauge(self, address):
+        with open("./abi/balancer/LiquidityGauge.json", "r") as f:
+            abi = json.load(f)
+        return Contract.from_abi('LiquidityGauge', address, abi)
+
     def loadERC20Token(self, token):
         with open("./abi/ERC20.json", "r") as f:
             abi = json.load(f)
@@ -223,16 +237,9 @@ class Environment:
         proxy = nProxy.deploy(emptyProxyImpl.address, bytes(), {"from": self.deployer})
         return Contract.from_abi("Proxy", proxy.address, EmptyProxy.abi)
 
-    def deployBalancerToken(self):
-        return MockERC20.deploy("Mock Balancer Token", "BAL", 18, 0, {"from": self.deployer})
-
-    def upgrade_sNOTE(self, treasuryManager):
-        self.balancerMinter = MockBalancerMinter.deploy(self.bal, {"from": self.deployer})
-        self.liquidityGauge = MockLiquidityGauge.deploy(self.balancerPool.address, {"from": self.deployer})
-
-        # self.deployer gets all of the tokens initially, need to give some to minter and gauge
-        self.bal.transfer(self.balancerMinter.address, 10000000e18, {"from": self.deployer})
-        self.liquidityGauge.transfer(self.liquidityGauge.address, 10000000e18, {"from": self.deployer})
+    def upgrade_sNOTE(self, treasuryManager, shouldInitialize = True):
+        self.balancerMinter = self.loadBalancerMinter(EnvironmentConfig["BalancerMinter"])
+        self.liquidityGauge = self.loadLiquidityGauge(EnvironmentConfig["LiquidityGauge"])
 
         sNOTEImpl = sNOTE.deploy(
             self.balancerVault.address,
@@ -245,12 +252,15 @@ class Environment:
             {"from": self.deployer}
         )
 
-        initializeCallData = sNOTEImpl.initialize.encode_input(
-            self.config['sNOTEConfig']['owner'],
-            self.config['sNOTEConfig']['coolDownSeconds']
-        )
-
-        self.sNOTEProxy.upgradeToAndCall(sNOTEImpl, initializeCallData, {'from': self.deployer})
+        if shouldInitialize:
+            initializeCallData = sNOTEImpl.initialize.encode_input(
+                self.config['sNOTEConfig']['owner'],
+                self.config['sNOTEConfig']['coolDownSeconds']
+            )
+            self.sNOTEProxy.upgradeToAndCall(sNOTEImpl, initializeCallData, {'from': self.deployer})
+        else:
+            self.sNOTEProxy.upgradeTo(sNOTEImpl, {'from': self.deployer})
+        
         return self.load_sNOTE(self.sNOTEProxy.address)
 
     def deployBalancerPool(self, poolConfig, owner, deployer):

@@ -221,13 +221,13 @@ contract sNOTE is
         );
         _mint(msg.sender, bptAmount);
 
-        (uint256 wethAmount, uint256 noteAmount) = _getTokenBalances(bptAmount);
+        (uint256 wethAmount, uint256 noteAmount) = getTokenBalances(bptAmount);
         emit SNoteMinted(msg.sender, wethAmount, noteAmount, bptAmount);
     }
 
-    function _getTokenBalances(uint256 bptAmount)
-        internal
-        returns (uint256, uint256)
+    function getTokenBalances(uint256 bptAmount)
+        public view
+        returns (uint256 wethBalance, uint256 noteBalance)
     {
         // prettier-ignore
         (
@@ -241,10 +241,8 @@ contract sNOTE is
         // increase NOTE precision to 1e18
         uint256 noteBal = balances[NOTE_INDEX] * 1e10;
 
-        return (
-            (balances[WETH_INDEX] * bptAmount) / bptSupply,
-            (noteBal * bptAmount) / bptSupply / 1e10
-        );
+        wethBalance = (balances[WETH_INDEX] * bptAmount) / bptSupply;
+        noteBalance = (noteBal * bptAmount) / bptSupply / 1e10;
     }
 
     /// @notice Mints sNOTE from some amount of NOTE and ETH

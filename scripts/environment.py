@@ -150,7 +150,7 @@ class TestAccounts:
         self.testManager = accounts.add('43a6634021d4b1ff7fd350843eebaa7cf547aefbf9503c33af0ec27c83f76827')
 
 class Environment:
-    def __init__(self, config, deployer) -> None:
+    def __init__(self, config, deployer, useFresh) -> None:
         self.config = config
         self.deployer = deployer
         self.balancerVault = self.loadBalancerVault(self.config["BalancerVault"])
@@ -163,19 +163,19 @@ class Environment:
         self.comp = self.loadERC20Token("COMP")
         self.bal = self.loadERC20Token("BAL")
         self.treasuryManager = self.deployEmptyProxy()
-        if self.config['sNOTEPoolAddress']:
+        if useFresh:
+            # This is a fresh deployment of sNOTE
+            self.sNOTEProxy = self.deployEmptyProxy()
+            self.balancerPool = self.loadBalancerPool(self.config['sNOTEPoolAddress'])
+            self.poolId = self.config['sNOTEPoolId']
+            self.sNOTE = self.upgrade_sNOTE(self.treasuryManager, True)
+        else:
             self.balancerPool = self.loadBalancerPool(self.config['sNOTEPoolAddress'])
             self.poolId = self.config['sNOTEPoolId']
             self.sNOTE = self.load_sNOTE(self.config['sNOTE'])
             self.sNOTEProxy = self.load_sNOTE(self.config['sNOTE'])
-        else:
-            # This is a fresh deployment of sNOTE
-            self.sNOTEProxy = self.deployEmptyProxy()
-            self.deployBalancerPool(self.config['balancerPoolConfig'], self.sNOTEProxy.address, self.deployer)
-            self.sNOTE = self.upgrade_sNOTE(self.treasuryManager, True)
-            self.initBalancerPool(self.deployer)
-        # Stake all BPT
-        self.upgrade_sNOTE(self.treasuryManager, False)
+            # Upgrade sNOTE for staking
+            self.upgrade_sNOTE(self.treasuryManager, False)
         self.sNOTE.approveAndStakeAll({"from": self.deployer})
         self.treasuryManager = self.upgradeTreasuryManager()
         self.DAIToken = self.loadERC20Token("DAI")
@@ -358,10 +358,10 @@ class Environment:
             False
         ], 0, chain.time() + 20000, { "from": account })
 
-def create_environment():
+def create_environment(useFresh = False):
     testAccounts = TestAccounts()
     testAccounts.ETHWhale.transfer(testAccounts.NOTEWhale, 100e18)
-    return Environment(EnvironmentConfig, testAccounts.NOTEWhale)
+    return Environment(EnvironmentConfig, testAccounts.NOTEWhale, useFresh)
     
 def main():
     env = create_environment()

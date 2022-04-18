@@ -321,12 +321,12 @@ def test_redeem():
     wethBalBefore = env.weth.balanceOf(testAccounts.ETHWhale)
 
     poolTokenShare = env.sNOTE.getPoolTokenShare(env.sNOTE.balanceOf(testAccounts.ETHWhale))
-    [ethAmount, noteAmount1] = env.sNOTE.getTokenBalances(poolTokenShare / 2)
+    [ethAmount, noteAmount1] = env.sNOTE.getTokenClaim(env.sNOTE.balanceOf(testAccounts.ETHWhale) / 2)
     # Successful redeem after window begins (redeem to ETH)
     env.sNOTE.redeem(env.sNOTE.balanceOf(testAccounts.ETHWhale) / 2, 0, 0, True, {"from": testAccounts.ETHWhale})
 
     poolTokenShare = env.sNOTE.getPoolTokenShare(env.sNOTE.balanceOf(testAccounts.ETHWhale))
-    [wethAmount, noteAmount2] = env.sNOTE.getTokenBalances(poolTokenShare / 2)
+    [wethAmount, noteAmount2] = env.sNOTE.getTokenClaim(env.sNOTE.balanceOf(testAccounts.ETHWhale) / 2)
     # Successful redeem again within window (redeem to WETH)
     env.sNOTE.redeem(env.sNOTE.balanceOf(testAccounts.ETHWhale) / 2, 0, 0, False, {"from": testAccounts.ETHWhale})
 
@@ -416,7 +416,7 @@ def test_cannot_transfer_inside_redeem_window():
 
     # Successful redeem to show that we are in the window
     poolTokenShare = env.sNOTE.getPoolTokenShare(env.sNOTE.balanceOf(testAccounts.ETHWhale))
-    [wethAmount, noteAmount] = env.sNOTE.getTokenBalances(poolTokenShare / 2)
+    [wethAmount, noteAmount] = env.sNOTE.getTokenClaim(env.sNOTE.balanceOf(testAccounts.ETHWhale) / 2)
     txn = env.sNOTE.redeem(env.sNOTE.balanceOf(testAccounts.ETHWhale) / 2, 0, 0, True, {"from": testAccounts.ETHWhale})
     # Withdrawing more WETH and NOTE because of donated initial liquidity
     assert txn.events["SNoteRedeemed"]["account"] == testAccounts.ETHWhale

@@ -178,7 +178,7 @@ contract sNOTE is
         );
         lastShortfallWithdrawTime = blockTime;
 
-        uint256 bptBalance = LIQUIDITY_GAUGE.balanceOf(address(this));
+        uint256 bptBalance = _bptHeld();
         uint256 maxBPTWithdraw = (bptBalance * MAX_SHORTFALL_WITHDRAW) / 100;
         // Do not allow a withdraw of more than the MAX_SHORTFALL_WITHDRAW percentage. Specifically don't
         // revert here since there may be a delay between when governance issues the token amount and when
@@ -221,28 +221,8 @@ contract sNOTE is
         );
         _mint(msg.sender, bptAmount);
 
-        (uint256 wethAmount, uint256 noteAmount) = getTokenBalances(bptAmount);
+        (uint256 wethAmount, uint256 noteAmount) = getTokenClaimForBPT(bptAmount);
         emit SNoteMinted(msg.sender, wethAmount, noteAmount, bptAmount);
-    }
-
-    function getTokenBalances(uint256 bptAmount)
-        public view
-        returns (uint256 wethBalance, uint256 noteBalance)
-    {
-        // prettier-ignore
-        (
-            /* address[] memory tokens */,
-            uint256[] memory balances,
-            /* uint256 lastChangeBlock */
-        ) = BALANCER_VAULT.getPoolTokens(NOTE_ETH_POOL_ID);
-
-        uint256 bptSupply = BALANCER_POOL_TOKEN.totalSupply();
-
-        // increase NOTE precision to 1e18
-        uint256 noteBal = balances[NOTE_INDEX] * 1e10;
-
-        wethBalance = (balances[WETH_INDEX] * bptAmount) / bptSupply;
-        noteBalance = (noteBal * bptAmount) / bptSupply / 1e10;
     }
 
     /// @notice Mints sNOTE from some amount of NOTE and ETH
@@ -299,6 +279,8 @@ contract sNOTE is
         uint256[] memory maxAmountsIn,
         uint256 minBPT
     ) internal {
+        // Don't use _bptHeld here because we are just detecting the change
+        // in BPT tokens from minting
         uint256 bptBefore = BALANCER_POOL_TOKEN.balanceOf(address(this));
         // Set msgValue when joining via ETH
         uint256 msgValue = assets[WETH_INDEX] == IAsset(address(0))
@@ -320,6 +302,8 @@ contract sNOTE is
                 false // Don't use internal balances
             )
         );
+        // Don't use _bptHeld here because we are just detecting the change
+        // in BPT tokens from minting
         uint256 bptAfter = BALANCER_POOL_TOKEN.balanceOf(address(this));
         uint256 bptChange = bptAfter - bptBefore;
 
@@ -467,7 +451,52 @@ contract sNOTE is
         _stakeAll();
     }
 
+    /// @dev Gets the total BPT held across the LIQUIDITY GAUGE and the contract itself
+    function _bptHeld() internal view returns (uint256) {
+        return (
+            LIQUIDITY_GAUGE.balanceOf(address(this)) +
+            BALANCER_POOL_TOKEN.balanceOf(address(this))
+        );
+    }
+
     /** External View Methods **/
+    /// @notice Returns the WETH and NOTE claim for an amount of sNOTE
+    function getTokenClaim(uint256 sNOTEAmount)
+        public view
+        returns (uint256 wethBalance, uint256 noteBalance)
+    {
+        return getTokenClaimForBPT(getPoolTokenShare(sNOTEAmount));
+    }
+
+    /// @notice Returns the WETH and NOTE claim for an address
+    function tokenClaimOf(address account)
+        public view
+        returns (uint256 wethBalance, uint256 noteBalance)
+    {
+        return getTokenClaimForBPT(getPoolTokenShare(balanceOf(account)));
+    }
+
+    /// @notice Returns the WETH and NOTE claim for an amount of BPT
+    function getTokenClaimForBPT(uint256 bptAmount)
+        public view
+        returns (uint256 wethBalance, uint256 noteBalance)
+    {
+        // prettier-ignore
+        (
+            /* address[] memory tokens */,
+            uint256[] memory balances,
+            /* uint256 lastChangeBlock */
+        ) = BALANCER_VAULT.getPoolTokens(NOTE_ETH_POOL_ID);
+
+        uint256 bptSupply = BALANCER_POOL_TOKEN.totalSupply();
+
+        // increase NOTE precision to 1e18
+        uint256 noteBal = balances[NOTE_INDEX] * 1e10;
+
+        wethBalance = (balances[WETH_INDEX] * bptAmount) / bptSupply;
+        noteBalance = (noteBal * bptAmount) / bptSupply / 1e10;
+    }
+
 
     /// @notice Returns how many Balancer pool tokens an sNOTE token amount has a claim on
     function getPoolTokenShare(uint256 sNOTEAmount)
@@ -478,7 +507,7 @@ contract sNOTE is
         uint256 _totalSupply = totalSupply();
         if (_totalSupply == 0) return 0;
 
-        uint256 bptBalance = LIQUIDITY_GAUGE.balanceOf(address(this));
+        uint256 bptBalance = _bptHeld();
         // BPT and sNOTE are both in 18 decimal precision so no conversion required
         return (bptBalance * sNOTEAmount) / _totalSupply;
     }
@@ -490,6 +519,12 @@ contract sNOTE is
         returns (uint256 bptClaim)
     {
         return getPoolTokenShare(balanceOf(account));
+    }
+
+    /// @notice Returns the voting power of an account without consulting delegation,
+    /// used for off chain Snapshot voting.
+    function votingPowerWithoutDelegation(address account) public view returns (uint256) {
+        return getVotingPower(balanceOf(account));
     }
 
     /// @notice Calculates voting power for a given amount of sNOTE
@@ -511,7 +546,7 @@ contract sNOTE is
         // this formula to calculate noteAmount
         // (bptBalance * 0.8) * bptPrice = notePrice * noteAmount
         // noteAmount = (bptPrice * bptBalance * 0.8) / notePrice
-        uint256 bptBalance = LIQUIDITY_GAUGE.balanceOf(address(this));
+        uint256 bptBalance = _bptHeld();
         // This calculation is (NOTE tokens are in 8 decimal precision):
         // (1e18 * 1e18 * 1e2) / (1e18 * 1e2 * 1e10) == 1e8
         uint256 noteAmount = (bptPrice * bptBalance * 80) /
@@ -573,7 +608,7 @@ contract sNOTE is
 
         // NOTE: at this point the BPT has already been transferred into the sNOTE contract, so this
         // bptBalance amount includes bptAmount.
-        uint256 bptBalance = LIQUIDITY_GAUGE.balanceOf(address(this));
+        uint256 bptBalance = _bptHeld();
         uint256 _totalSupply = totalSupply();
         uint256 sNOTEToMint;
         if (_totalSupply == 0) {

@@ -10,9 +10,9 @@ import {EIP1271Wallet} from "./utils/EIP1271Wallet.sol";
 import {IVault, IAsset} from "../interfaces/balancer/IVault.sol";
 import {NotionalTreasuryAction} from "../interfaces/notional/NotionalTreasuryAction.sol";
 import {WETH9} from "../interfaces/WETH9.sol";
-import "../interfaces/balancer/IPriceOracle.sol";
 import "../interfaces/0x/IExchangeV3.sol";
 import "../interfaces/notional/IStakedNote.sol";
+import "./utils/BalancerUtils.sol";
 
 contract TreasuryManager is
     EIP1271Wallet,
@@ -118,7 +118,10 @@ contract TreasuryManager is
 
     function approveBalancer() external onlyOwner {
         NOTE.safeApprove(address(BALANCER_VAULT), type(uint256).max);
-        IERC20(address(WETH)).safeApprove(address(BALANCER_VAULT), type(uint256).max);
+        IERC20(address(WETH)).safeApprove(
+            address(BALANCER_VAULT),
+            type(uint256).max
+        );
     }
 
     function setPriceOracle(address tokenAddress, address oracleAddress)
@@ -226,16 +229,12 @@ contract TreasuryManager is
         maxAmountsIn[WETH_INDEX] = wethAmount;
         maxAmountsIn[NOTE_INDEX] = noteAmount;
 
-        IPriceOracle.OracleAverageQuery[]
-            memory queries = new IPriceOracle.OracleAverageQuery[](1);
-
-        queries[0].variable = IPriceOracle.Variable.PAIR_PRICE;
-        queries[0].secs = 3600; // last hour
-        queries[0].ago = 0; // now
-
         // Gets the balancer time weighted average price denominated in ETH
-        uint256 noteOraclePrice = IPriceOracle(address(BALANCER_POOL_TOKEN))
-            .getTimeWeightedAverage(queries)[0];
+        uint256 noteOraclePrice = BalancerUtils.getTimeWeightedOraclePrice(
+            address(BALANCER_POOL_TOKEN),
+            IPriceOracle.Variable.PAIR_PRICE,
+            3600
+        );
 
         BALANCER_VAULT.joinPool(
             NOTE_ETH_POOL_ID,
@@ -254,7 +253,7 @@ contract TreasuryManager is
         );
 
         // Make sure the donated BPT is staked
-        sNOTE.stakeAll();        
+        sNOTE.stakeAll();
 
         uint256 noteSpotPrice = _getNOTESpotPrice();
 

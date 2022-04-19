@@ -20,7 +20,7 @@ def test_trading_DAI_good_price():
     env.treasuryManager.setSlippageLimit(env.dai.address, 0.9e8, {"from": env.deployer})
     env.dai.transfer(env.treasuryManager.address, 10000e18, { "from": testAccounts.DAIWhale })
     env.weth.approve(env.exchangeV3.address, 2 ** 255, { "from": testAccounts.WETHWhale })
-    order = Order(env.assetProxy, env.treasuryManager.address, env.dai.address, 3600e18, env.weth.address, 1e18)
+    order = Order(env.assetProxy, env.treasuryManager.address, env.dai.address, 3000e18, env.weth.address, 1e18)
     DAIBefore = env.dai.balanceOf(env.treasuryManager.address)
     ETHBefore = env.weth.balanceOf(testAccounts.WETHWhale)
     env.exchangeV3.fillOrder(
@@ -31,7 +31,7 @@ def test_trading_DAI_good_price():
     )
     DAIAfter = env.dai.balanceOf(env.treasuryManager.address)
     ETHAfter = env.weth.balanceOf(testAccounts.WETHWhale)
-    assert DAIBefore - DAIAfter == 3600e18
+    assert DAIBefore - DAIAfter == 3000e18
     assert ETHBefore - ETHAfter == 1e18
 
 def test_trading_DAI_very_good_price():
@@ -345,6 +345,7 @@ def test_invest_eth():
     env.treasuryManager.approveBalancer({"from": env.deployer})
     env.treasuryManager.setPriceOracle(env.dai.address, '0x6085b0a8f4c7ffa2e8ca578037792d6535d1e29b', {"from": env.deployer})
     env.treasuryManager.setSlippageLimit(env.dai.address, 0.9e8, {"from": env.deployer})
+    env.treasuryManager.setNOTEPurchaseLimit(0.9e8, {"from": env.deployer})
     env.weth.transfer(env.treasuryManager.address, 1e18, {"from": testAccounts.WETHWhale})
     env.note.approve(env.balancerVault.address, 2 ** 255, {"from": testAccounts.WETHWhale})
     # Initialize price oracle
@@ -353,7 +354,7 @@ def test_invest_eth():
     chain.sleep(3600)
     chain.mine()
     bptBefore = env.liquidityGauge.balanceOf(env.sNOTE.address)
-    assert pytest.approx(bptBefore, abs=1000) == 144955932735535206728
+    assert pytest.approx(bptBefore, abs=1000) == 981770012526898092964803
     env.treasuryManager.investWETHAndNOTE(0.1e18, 0, 0, {"from": testAccounts.testManager})
     bptAfter = env.liquidityGauge.balanceOf(env.sNOTE.address)
-    assert pytest.approx(bptAfter, abs=1000) == 145099964881902829437
+    assert pytest.approx(bptAfter, abs=1000) == 981846341102242643366015

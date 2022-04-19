@@ -12,6 +12,7 @@ import "../interfaces/balancer/IWeightedPool.sol";
 import "../interfaces/balancer/IPriceOracle.sol";
 import "../interfaces/balancer/ILiquidityGauge.sol";
 import "../interfaces/balancer/IBalancerMinter.sol";
+import "./utils/BalancerUtils.sol";
 
 contract sNOTE is
     ERC20VotesUpgradeable,
@@ -43,6 +44,9 @@ contract sNOTE is
     /// @notice Redemption window in seconds
     uint256 public constant REDEEM_WINDOW_SECONDS = 3 days;
     uint32 public constant MAXIMUM_COOL_DOWN_PERIOD_SECONDS = 30 days;
+
+    /// @notice Window for time weighted oracle price
+    uint256 public constant VOTING_POWER_ORACLE_SECONDS = 1 days;
 
     /// @notice Number of seconds that need to pass before sNOTE can be redeemed
     uint32 public coolDownTimeInSeconds;
@@ -84,19 +88,21 @@ contract sNOTE is
 
     event ClaimedBAL(uint256 balAmount);
 
+    /** Errors **/
+
+    error OwnerRequired(address sender);
+
+    error OwnerOrManagerRequired(address sender);
+
     modifier onlyManagerContract() {
-        require(
-            TREASURY_MANAGER_CONTRACT == msg.sender,
-            "Treasury manager required"
-        );
+        if (TREASURY_MANAGER_CONTRACT != msg.sender)
+            revert OwnerRequired(msg.sender);
         _;
     }
 
     modifier ownerOrManagerContract() {
-        require(
-            TREASURY_MANAGER_CONTRACT == msg.sender || owner == msg.sender,
-            "Owner or treasury manager required"
-        );
+        if (TREASURY_MANAGER_CONTRACT != msg.sender && owner != msg.sender)
+            revert OwnerOrManagerRequired(msg.sender);
         _;
     }
 
@@ -429,7 +435,7 @@ contract sNOTE is
         uint256 balAfter = BALANCER_TOKEN.balanceOf(address(this));
         uint256 claimAmount = balAfter - balBefore;
         BALANCER_TOKEN.safeTransfer(TREASURY_MANAGER_CONTRACT, claimAmount);
-        emit ClaimedBAL(balAfter - balBefore);
+        emit ClaimedBAL(claimAmount);
     }
 
     function _stakeAll() internal {
@@ -535,12 +541,18 @@ contract sNOTE is
         if (_totalSupply == 0) return 0;
 
         // Gets the BPT token price (in ETH)
-        uint256 bptPrice = IPriceOracle(address(BALANCER_POOL_TOKEN)).getLatest(
-            IPriceOracle.Variable.BPT_PRICE
+        uint256 bptPrice = BalancerUtils.getTimeWeightedOraclePrice(
+            address(BALANCER_POOL_TOKEN),
+            IPriceOracle.Variable.BPT_PRICE,
+            VOTING_POWER_ORACLE_SECONDS
         );
+        
         // Gets the NOTE token price (in ETH)
-        uint256 notePrice = IPriceOracle(address(BALANCER_POOL_TOKEN))
-            .getLatest(IPriceOracle.Variable.PAIR_PRICE);
+        uint256 notePrice = BalancerUtils.getTimeWeightedOraclePrice(
+            address(BALANCER_POOL_TOKEN),
+            IPriceOracle.Variable.PAIR_PRICE,
+            VOTING_POWER_ORACLE_SECONDS
+        );
 
         // Since both bptPrice and notePrice are denominated in ETH, we can use
         // this formula to calculate noteAmount

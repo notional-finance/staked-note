@@ -3,7 +3,6 @@ pragma solidity =0.8.11;
 
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {BoringOwnable} from "./utils/BoringOwnable.sol";
 import {EIP1271Wallet} from "./utils/EIP1271Wallet.sol";
@@ -28,17 +27,21 @@ contract TreasuryManager is
     NotionalTreasuryAction public immutable NOTIONAL;
     IERC20 public immutable NOTE;
     IVault public immutable BALANCER_VAULT;
-    ERC20 public immutable BALANCER_POOL_TOKEN;
+    IERC20 public immutable BALANCER_POOL_TOKEN;
     IStakedNote public immutable sNOTE;
     bytes32 public immutable NOTE_ETH_POOL_ID;
     address public immutable ASSET_PROXY;
     IExchangeV3 public immutable EXCHANGE;
+    bytes32 public immutable BAL_ETH_POOL_ID;
+    IERC20 public immutable BAL_LIQUIDITY_TOKEN;
+    IERC20 public immutable BAL;
+    address public immutable VE_BAL_DELEGATOR;
     uint32 public constant MAXIMUM_COOL_DOWN_PERIOD_SECONDS = 30 days;
 
     /// @notice Balancer token indexes
     /// Balancer requires token addresses to be sorted BAL#102
-    uint256 public immutable WETH_INDEX;
-    uint256 public immutable NOTE_INDEX;
+    uint16 public immutable NOTE_INDEX;
+    uint16 public immutable BAL_INDEX;
 
     address public manager;
 
@@ -63,10 +66,26 @@ contract TreasuryManager is
     /// @notice Emitted when cool down time is updated
     event InvestmentCoolDownUpdated(uint256 newCoolDownTimeSeconds);
     event AssetsInvested(uint256 wethAmount, uint256 noteAmount);
+    event AddBalancerLiquidity(
+        uint256 wethChangeAmount,
+        uint256 noteChangeAmount,
+        uint256 bptChangeAmount
+    );
+    event RemoveBalancerLiquidity(
+        uint256 wethChangeAmount,
+        uint256 noteChangeAmount,
+        uint256 bptChangeAmount
+    );
 
     /// @dev Restricted methods for the treasury manager
     modifier onlyManager() {
         require(msg.sender == manager, "Unauthorized");
+        _;
+    }
+
+    /// @dev Restricted methods for the owner or treasury manager
+    modifier ownerOrManager() {
+        require(msg.sender == manager || msg.sender == owner, "Unauthorized");
         _;
     }
 
@@ -75,28 +94,55 @@ contract TreasuryManager is
         WETH9 _weth,
         IVault _balancerVault,
         bytes32 _noteETHPoolId,
-        IERC20 _note,
         IStakedNote _sNOTE,
         address _assetProxy,
         IExchangeV3 _exchange,
-        uint256 _wethIndex,
-        uint256 _noteIndex
+        uint16 _noteIndex,
+        uint16 _balIndex,
+        bytes32 _balETHPoolId,
+        address _veBalDelegator
     ) EIP1271Wallet(_weth) initializer {
-        // Balancer will revert if pool is not found
-        // prettier-ignore
-        (address poolAddress, /* */) = _balancerVault.getPool(_noteETHPoolId);
-
-        WETH_INDEX = _wethIndex;
         NOTE_INDEX = _noteIndex;
+        BAL_INDEX = _balIndex;
 
         NOTIONAL = NotionalTreasuryAction(_notional);
         sNOTE = _sNOTE;
-        NOTE = _note;
+        NOTE = IERC20(_sNOTE.NOTE());
         BALANCER_VAULT = _balancerVault;
         NOTE_ETH_POOL_ID = _noteETHPoolId;
         ASSET_PROXY = _assetProxy;
-        BALANCER_POOL_TOKEN = ERC20(poolAddress);
+        BALANCER_POOL_TOKEN = IERC20(
+            _getPoolAddress(_balancerVault, _noteETHPoolId)
+        );
         EXCHANGE = _exchange;
+        BAL_ETH_POOL_ID = _balETHPoolId;
+        BAL_LIQUIDITY_TOKEN = IERC20(
+            _getPoolAddress(_balancerVault, _balETHPoolId)
+        );
+        BAL = IERC20(
+            _getTokenAddress(_balancerVault, _balETHPoolId, BAL_INDEX)
+        );
+        VE_BAL_DELEGATOR = _veBalDelegator;
+    }
+
+    function _getPoolAddress(IVault vault, bytes32 poolId)
+        internal
+        view
+        returns (address)
+    {
+        // Balancer will revert if pool is not found
+        // prettier-ignore
+        (address poolAddress, /* */) = vault.getPool(poolId);
+    }
+
+    function _getTokenAddress(
+        IVault vault,
+        bytes32 poolId,
+        uint256 tokenIndex
+    ) internal view returns (address) {
+        // prettier-ignore
+        (address[] memory tokens, /* */, /* */) = vault.getPoolTokens(poolId);
+        return tokens[tokenIndex];
     }
 
     function initialize(
@@ -118,7 +164,10 @@ contract TreasuryManager is
 
     function approveBalancer() external onlyOwner {
         NOTE.safeApprove(address(BALANCER_VAULT), type(uint256).max);
-        IERC20(address(WETH)).safeApprove(address(BALANCER_VAULT), type(uint256).max);
+        IERC20(address(WETH)).safeApprove(
+            address(BALANCER_VAULT),
+            type(uint256).max
+        );
     }
 
     function setPriceOracle(address tokenAddress, address oracleAddress)
@@ -203,6 +252,86 @@ contract TreasuryManager is
         emit InvestmentCoolDownUpdated(_coolDownTimeInSeconds);
     }
 
+    function delegateBalancerLPToken(uint256 amount) external ownerOrManager {
+        if (amount == type(uint256).max)
+            amount = BAL_LIQUIDITY_TOKEN.balanceOf(address(this));
+        BAL_LIQUIDITY_TOKEN.safeTransfer(VE_BAL_DELEGATOR, amount);
+    }
+
+    function addBalancerLiquidity(
+        uint256 wethAmount,
+        uint256 balAmount,
+        uint256 minBPT
+    ) external ownerOrManager {
+        (
+            IAsset[] memory assets,
+            uint256[] memory maxAmountsIn
+        ) = _getPoolParams(wethAmount, address(BAL), BAL_INDEX, balAmount);
+
+        uint256 bptBefore = BAL_LIQUIDITY_TOKEN.balanceOf(address(this));
+
+        BALANCER_VAULT.joinPool(
+            BAL_ETH_POOL_ID,
+            address(this),
+            address(this),
+            IVault.JoinPoolRequest(
+                assets,
+                maxAmountsIn,
+                abi.encode(
+                    IVault.JoinKind.EXACT_TOKENS_IN_FOR_BPT_OUT,
+                    maxAmountsIn,
+                    minBPT // Apply minBPT to prevent front running
+                ),
+                false // Don't use internal balances
+            )
+        );
+
+        uint256 bptAfter = BAL_LIQUIDITY_TOKEN.balanceOf(address(this));
+
+        emit AddBalancerLiquidity(wethAmount, balAmount, bptAfter - bptBefore);
+    }
+
+    function removeBalancerLiquidity(
+        uint256 minWETH,
+        uint256 minBAL,
+        uint256 bptAmount
+    ) external ownerOrManager {
+        if (bptAmount == type(uint256).max)
+            bptAmount = BAL_LIQUIDITY_TOKEN.balanceOf(address(this));
+
+        (
+            IAsset[] memory assets,
+            uint256[] memory minAmountsOut
+        ) = _getPoolParams(minWETH, address(BAL), BAL_INDEX, minBAL);
+
+        uint256 wethBefore = IERC20(address(WETH)).balanceOf(address(this));
+        uint256 balBefore = BAL.balanceOf(address(this));
+
+        BALANCER_VAULT.exitPool(
+            BAL_ETH_POOL_ID,
+            address(this),
+            payable(address(this)),
+            IVault.ExitPoolRequest(
+                assets,
+                minAmountsOut,
+                abi.encode(
+                    IVault.ExitKind.EXACT_BPT_IN_FOR_TOKENS_OUT,
+                    bptAmount
+                ),
+                false // Don't use internal balances
+            )
+        );
+
+        uint256 wethAfter = IERC20(address(WETH)).balanceOf(address(this));
+        uint256 balAfter = BAL.balanceOf(address(this));
+
+        emit RemoveBalancerLiquidity(
+            wethAfter - wethBefore,
+            balAfter - balBefore,
+            bptAmount
+        );
+    }
+
     /// @notice Allows treasury manager to invest WETH and NOTE into the Balancer pool
     /// @param wethAmount amount of WETH to transfer into the Balancer pool
     /// @param noteAmount amount of NOTE to transfer into the Balancer pool
@@ -219,13 +348,6 @@ contract TreasuryManager is
         );
         lastInvestTimestamp = blockTime;
 
-        IAsset[] memory assets = new IAsset[](2);
-        assets[WETH_INDEX] = IAsset(address(WETH));
-        assets[NOTE_INDEX] = IAsset(address(NOTE));
-        uint256[] memory maxAmountsIn = new uint256[](2);
-        maxAmountsIn[WETH_INDEX] = wethAmount;
-        maxAmountsIn[NOTE_INDEX] = noteAmount;
-
         IPriceOracle.OracleAverageQuery[]
             memory queries = new IPriceOracle.OracleAverageQuery[](1);
 
@@ -236,6 +358,11 @@ contract TreasuryManager is
         // Gets the balancer time weighted average price denominated in ETH
         uint256 noteOraclePrice = IPriceOracle(address(BALANCER_POOL_TOKEN))
             .getTimeWeightedAverage(queries)[0];
+
+        (
+            IAsset[] memory assets,
+            uint256[] memory maxAmountsIn
+        ) = _getPoolParams(wethAmount, address(NOTE), NOTE_INDEX, noteAmount);
 
         BALANCER_VAULT.joinPool(
             NOTE_ETH_POOL_ID,
@@ -254,7 +381,7 @@ contract TreasuryManager is
         );
 
         // Make sure the donated BPT is staked
-        sNOTE.stakeAll();        
+        sNOTE.stakeAll();
 
         uint256 noteSpotPrice = _getNOTESpotPrice();
 
@@ -268,7 +395,23 @@ contract TreasuryManager is
         emit AssetsInvested(wethAmount, noteAmount);
     }
 
-    function _getNOTESpotPrice() public view returns (uint256) {
+    function _getPoolParams(
+        uint256 wethAmount,
+        address tokenAddress,
+        uint256 tokenIndex,
+        uint256 tokenAmount
+    ) internal view returns (IAsset[] memory, uint256[] memory) {
+        IAsset[] memory assets = new IAsset[](2);
+        assets[1 - tokenIndex] = IAsset(address(WETH));
+        assets[tokenIndex] = IAsset(tokenAddress);
+        uint256[] memory maxAmountsIn = new uint256[](2);
+        maxAmountsIn[1 - tokenIndex] = wethAmount;
+        maxAmountsIn[tokenIndex] = tokenAmount;
+
+        return (assets, maxAmountsIn);
+    }
+
+    function _getNOTESpotPrice() internal view returns (uint256) {
         // prettier-ignore
         (
             /* address[] memory tokens */,
@@ -287,7 +430,7 @@ contract TreasuryManager is
         // SpotPrice = (ETHBalance * 5 * 1e18) / (NOTEBalance * 1.25)
         // SpotPrice = (ETHBalance * 5 * 1e18) / (NOTEBalance * 125 / 100)
 
-        return (balances[WETH_INDEX] * 5 * 1e18) / ((noteBal * 125) / 100);
+        return (balances[1 - NOTE_INDEX] * 5 * 1e18) / ((noteBal * 125) / 100);
     }
 
     function isValidSignature(bytes calldata data, bytes calldata signature)

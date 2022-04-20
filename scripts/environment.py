@@ -12,6 +12,7 @@ from brownie import (
     EmptyProxy, 
     TreasuryManager, 
     ChainlinkAdapter,
+    VeBalDelegator
 )
 from brownie.network.state import Chain
 from brownie.convert.datatypes import Wei
@@ -42,6 +43,7 @@ EnvironmentConfig = {
     "LiquidityGauge": "0x40ac67ea5bd1215d99244651cc71a03468bce6c0",
     "BalancerMinter": "0x239e55F427D44C3cc793f49bFB507ebe76638a2b",
     "ExchangeV3": "0x61935cbdd02287b511119ddb11aeb42f1593b7ef",
+    "BalEthPoolId": "0x5c6ee304399dbdb9c8ef030ab642b10820db8f56000200000000000000000014",
     "balancerPoolConfig": {
         "name": "Staked NOTE Weighted Pool",
         "symbol": "sNOTE-BPT",
@@ -182,6 +184,7 @@ class Environment:
         self.exchangeV3 = self.loadExchangeV3(self.config['ExchangeV3'])
         self.assetProxy = interface.ERC20Proxy(self.config["ExchangeV3"])
         self.COMPOracle = self.deployCOMPOracle()
+        self.veBalDelegator = VeBalDelegator.deploy({"from": self.deployer})
 
     def loadExchangeV3(self, address):
         with open("./abi/0x/ExchangeV3.json", "r") as f:
@@ -301,18 +304,19 @@ class Environment:
                 "value": self.config["balancerPoolConfig"]["initBalances"][0]
             }
         )
-    
+
     def upgradeTreasuryManager(self):
         treasuryManager = TreasuryManager.deploy(
             EnvironmentConfig["Notional"],
-            EnvironmentConfig["WETH"],
+            self.sNOTEProxy.address,
+            1, # NOTE Index
+            0, # BAL Index
             self.balancerVault,
             self.poolId,
-            EnvironmentConfig["NOTE"],
-            self.sNOTEProxy.address,
+            EnvironmentConfig["BalEthPoolId"],
+            self.veBalDelegator,
             EnvironmentConfig["ERC20AssetProxy"],
             EnvironmentConfig["ExchangeV3"],
-            0, 1,
             { "from": self.deployer }
         )
 

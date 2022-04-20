@@ -9,9 +9,9 @@ import {EIP1271Wallet} from "./utils/EIP1271Wallet.sol";
 import {IVault, IAsset} from "../interfaces/balancer/IVault.sol";
 import {NotionalTreasuryAction} from "../interfaces/notional/NotionalTreasuryAction.sol";
 import {WETH9} from "../interfaces/WETH9.sol";
-import "../interfaces/balancer/IPriceOracle.sol";
 import "../interfaces/0x/IExchangeV3.sol";
 import "../interfaces/notional/IStakedNote.sol";
+import "./utils/BalancerUtils.sol";
 
 contract TreasuryManager is
     EIP1271Wallet,
@@ -91,58 +91,43 @@ contract TreasuryManager is
 
     constructor(
         NotionalTreasuryAction _notional,
-        WETH9 _weth,
-        IVault _balancerVault,
-        bytes32 _noteETHPoolId,
         IStakedNote _sNOTE,
-        address _assetProxy,
-        IExchangeV3 _exchange,
         uint16 _noteIndex,
         uint16 _balIndex,
+        IVault _balancerVault,
+        bytes32 _noteETHPoolId,
         bytes32 _balETHPoolId,
-        address _veBalDelegator
-    ) EIP1271Wallet(_weth) initializer {
-        NOTE_INDEX = _noteIndex;
-        BAL_INDEX = _balIndex;
-
+        address _veBalDelegator,
+        address _assetProxy,
+        IExchangeV3 _exchange
+    ) EIP1271Wallet(WETH9(_sNOTE.WETH())) initializer {
         NOTIONAL = NotionalTreasuryAction(_notional);
         sNOTE = _sNOTE;
+        NOTE_INDEX = _noteIndex;
+        BAL_INDEX = _balIndex;
         NOTE = IERC20(_sNOTE.NOTE());
+
         BALANCER_VAULT = _balancerVault;
         NOTE_ETH_POOL_ID = _noteETHPoolId;
-        ASSET_PROXY = _assetProxy;
-        BALANCER_POOL_TOKEN = IERC20(
-            _getPoolAddress(_balancerVault, _noteETHPoolId)
-        );
-        EXCHANGE = _exchange;
         BAL_ETH_POOL_ID = _balETHPoolId;
-        BAL_LIQUIDITY_TOKEN = IERC20(
-            _getPoolAddress(_balancerVault, _balETHPoolId)
-        );
-        BAL = IERC20(
-            _getTokenAddress(_balancerVault, _balETHPoolId, BAL_INDEX)
-        );
         VE_BAL_DELEGATOR = _veBalDelegator;
-    }
 
-    function _getPoolAddress(IVault vault, bytes32 poolId)
-        internal
-        view
-        returns (address)
-    {
-        // Balancer will revert if pool is not found
-        // prettier-ignore
-        (address poolAddress, /* */) = vault.getPool(poolId);
-    }
+        BALANCER_POOL_TOKEN = BalancerUtils.getPoolAddress(
+            _balancerVault,
+            _noteETHPoolId
+        );
+        BAL_LIQUIDITY_TOKEN = BalancerUtils.getPoolAddress(
+            _balancerVault,
+            _balETHPoolId
+        );
+        BAL = BalancerUtils.getTokenAddress(
+            _balancerVault,
+            _balETHPoolId,
+            BAL_INDEX
+        );
 
-    function _getTokenAddress(
-        IVault vault,
-        bytes32 poolId,
-        uint256 tokenIndex
-    ) internal view returns (address) {
-        // prettier-ignore
-        (address[] memory tokens, /* */, /* */) = vault.getPoolTokens(poolId);
-        return tokens[tokenIndex];
+        ASSET_PROXY = _assetProxy;
+        EXCHANGE = _exchange;
     }
 
     function initialize(
@@ -348,16 +333,12 @@ contract TreasuryManager is
         );
         lastInvestTimestamp = blockTime;
 
-        IPriceOracle.OracleAverageQuery[]
-            memory queries = new IPriceOracle.OracleAverageQuery[](1);
-
-        queries[0].variable = IPriceOracle.Variable.PAIR_PRICE;
-        queries[0].secs = 3600; // last hour
-        queries[0].ago = 0; // now
-
         // Gets the balancer time weighted average price denominated in ETH
-        uint256 noteOraclePrice = IPriceOracle(address(BALANCER_POOL_TOKEN))
-            .getTimeWeightedAverage(queries)[0];
+        uint256 noteOraclePrice = BalancerUtils.getTimeWeightedOraclePrice(
+            address(BALANCER_POOL_TOKEN),
+            IPriceOracle.Variable.PAIR_PRICE,
+            3600
+        );
 
         (
             IAsset[] memory assets,

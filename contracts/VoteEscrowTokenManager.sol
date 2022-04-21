@@ -110,11 +110,13 @@ abstract contract VoteEscrowTokenManager is StakedNoteRef {
         emit Unlock(liquidToken.balanceOf(address(this)));
     }
 
-    /// @notice Allows the treasury manager contract to pull BAL 80/20 liquidity tokens back
-    function withdrawToManagerContract(uint256 amount) external onlyOwner {
+    /// @notice Allows the owner to transfer tokens to the treasury manager
+    /// @param token token address
+    /// @param amount amount to transfer
+    function transferTokenToManagerContract(address token, uint256 amount) external onlyOwner {
         if (amount == type(uint256).max)
-            amount = liquidToken.balanceOf(address(this));
-        liquidToken.safeTransfer(STAKED_NOTE.TREASURY_MANAGER_CONTRACT(), amount);
+            amount = ERC20(token).balanceOf(address(this));
+        ERC20(token).safeTransfer(STAKED_NOTE.TREASURY_MANAGER_CONTRACT(), amount);
     }
 
     /// @notice returns total balance of tokens, vote-escrowed or liquid.

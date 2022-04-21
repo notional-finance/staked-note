@@ -53,10 +53,14 @@ contract TreasuryManager is
     uint32 public coolDownTimeInSeconds;
     uint32 public lastInvestTimestamp;
 
+    /// @notice The amount of WETH that can be used to purchase BAL by providing single-sided liquidity
+    uint256 public balPurchaseLimit;
+
     event ManagementTransferred(address prevManager, address newManager);
     event AssetsHarvested(uint16[] currencies, uint256[] amounts);
     event COMPHarvested(address[] ctokens, uint256 amount);
     event NOTEPurchaseLimitUpdated(uint256 purchaseLimit);
+    event BALPurchaseLimitUpdated(uint256 purchaseLimit);
     event OrderCancelled(
         uint8 orderStatus,
         bytes32 orderHash,
@@ -184,6 +188,11 @@ contract TreasuryManager is
         emit NOTEPurchaseLimitUpdated(purchaseLimit);
     }
 
+    function setBALPurchaseLimit(uint256 purchaseLimit) external onlyOwner {
+        balPurchaseLimit = purchaseLimit;
+        emit BALPurchaseLimitUpdated(purchaseLimit);
+    }
+
     function withdraw(address token, uint256 amount) external onlyOwner {
         if (amount == type(uint256).max)
             amount = IERC20(token).balanceOf(address(this));
@@ -252,6 +261,9 @@ contract TreasuryManager is
         uint256 balAmount,
         uint256 minBPT
     ) external ownerOrManager {
+        require(wethAmount <= balPurchaseLimit, "BAL limit reached");
+        balPurchaseLimit -= wethAmount;
+
         (
             IAsset[] memory assets,
             uint256[] memory maxAmountsIn

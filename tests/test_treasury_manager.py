@@ -381,7 +381,7 @@ def test_vebal():
     assert pytest.approx(env.balLiquidityToken.balanceOf(env.veBalDelegator.address), abs=1000) == 414349726186765950603
 
     # Withdraw liquidity from VeBalDelegator
-    env.veBalDelegator.withdrawToManagerContract(2**256 - 1, {"from": env.sNOTE.owner()})
+    env.veBalDelegator.transferTokenToManagerContract(env.balLiquidityToken.address, 2**256 - 1, {"from": env.sNOTE.owner()})
     assert env.balLiquidityToken.balanceOf(env.veBalDelegator.address) == 0
     assert pytest.approx(env.balLiquidityToken.balanceOf(env.treasuryManager.address), abs=1000) == 414349726186765950603
 

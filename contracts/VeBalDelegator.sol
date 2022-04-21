@@ -28,5 +28,8 @@ contract VeBalDelegator is
         )
         LiquidityGaugeVoter(BALANCER_GAUGE_CONTROLLER)
         GovernorVoter()
-    {}
+    {
+        owner = msg.sender;
+        emit OwnershipTransferred(address(0), owner);
+    }
 }

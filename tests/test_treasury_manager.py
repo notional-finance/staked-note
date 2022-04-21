@@ -358,3 +358,35 @@ def test_invest_eth():
     env.treasuryManager.investWETHAndNOTE(0.1e18, 0, 0, {"from": testAccounts.testManager})
     bptAfter = env.liquidityGauge.balanceOf(env.sNOTE.address)
     assert pytest.approx(bptAfter, abs=1000) == 981846341102242643366015
+
+def test_vebal():
+    testAccounts = TestAccounts()
+    env = create_environment()
+    env.treasuryManager.setManager(testAccounts.testManager, { "from": env.deployer })
+    env.treasuryManager.approveToken(env.dai.address, 2 ** 255, { "from": env.deployer })
+    env.treasuryManager.approveBalancer({"from": env.deployer})
+    env.bal.transfer(env.treasuryManager.address, 1000000e18, {"from": testAccounts.BALWhale})
+
+    # Add liquidity
+    assert env.balLiquidityToken.balanceOf(env.treasuryManager.address) == 0
+    env.treasuryManager.addBalancerLiquidity(0, 1000e18, 0, {"from": testAccounts.testManager})
+    assert pytest.approx(env.balLiquidityToken.balanceOf(env.treasuryManager.address), abs=1000) == 414349726186765950603
+
+    # Delegate liquidity to VeBalDelegator
+    env.treasuryManager.delegateBalancerLiquidity(
+        env.balLiquidityToken.balanceOf(env.treasuryManager.address), 
+        {"from": testAccounts.testManager}
+    )
+    assert env.balLiquidityToken.balanceOf(env.treasuryManager.address) == 0
+    assert pytest.approx(env.balLiquidityToken.balanceOf(env.veBalDelegator.address), abs=1000) == 414349726186765950603
+
+    # Withdraw liquidity from VeBalDelegator
+    env.veBalDelegator.withdrawToManagerContract(2**256 - 1, {"from": env.sNOTE.owner()})
+    assert env.balLiquidityToken.balanceOf(env.veBalDelegator.address) == 0
+    assert pytest.approx(env.balLiquidityToken.balanceOf(env.treasuryManager.address), abs=1000) == 414349726186765950603
+
+    # Remove liquidity
+    env.treasuryManager.removeBalancerLiquidity(0, 0, 2**256 - 1, {"from": testAccounts.testManager})
+    assert env.balLiquidityToken.balanceOf(env.treasuryManager.address) == 0
+    assert pytest.approx(env.bal.balanceOf(env.treasuryManager.address), abs=1000) == 999798413393601360895808
+    assert pytest.approx(env.weth.balanceOf(env.treasuryManager.address), abs=1000) == 979069248073433495

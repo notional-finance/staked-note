@@ -36,6 +36,7 @@ EnvironmentConfig = {
     "WBTC": "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
     "COMP": "0xc00e94cb662c3520282e6f5717214004a7f26888",
     "BAL": "0xba100000625a3754423978a60c9317c58a424e3D",
+    "BALETH": "0x5c6Ee304399DBdB9C8Ef030aB642B10820DB8F56",
     "COMP_USD_Oracle": "0xdbd020caef83efd542f4de03e3cf0c28a4428bd5",
     "ETH_USD_Oracle": "0x5f4ec3df9cbd43714fe2740f5e3616155c5b8419",
     "Notional": "0x1344a36a1b56144c3bc62e7757377d288fde0369",
@@ -149,6 +150,7 @@ class TestAccounts:
         self.WETHWhale = accounts.at("0x6555e1cc97d3cba6eaddebbcd7ca51d75771e0b8", force=True)
         self.USDCWhale = accounts.at("0x6bb273bf25220d13c9b46c6ed3a5408a3ba9bcc6", force=True)
         self.WBTCWhale = accounts.at("0x92c96306289a7322174d6e091b9e36b14210e4f5", force=True)
+        self.BALWhale = accounts.at("0xcdcebf1f28678eb4a1478403ba7f34c94f7ddbc5", force=True)
         self.testManager = accounts.add('43a6634021d4b1ff7fd350843eebaa7cf547aefbf9503c33af0ec27c83f76827')
 
 class Environment:
@@ -179,12 +181,13 @@ class Environment:
             # Upgrade sNOTE for staking
             self.upgrade_sNOTE(self.treasuryManager, False)
         self.sNOTE.approveAndStakeAll({"from": self.deployer})
+        self.veBalDelegator = VeBalDelegator.deploy({"from": self.deployer})
+        self.balLiquidityToken = self.loadERC20Token("BALETH")
         self.treasuryManager = self.upgradeTreasuryManager()
         self.DAIToken = self.loadERC20Token("DAI")
         self.exchangeV3 = self.loadExchangeV3(self.config['ExchangeV3'])
         self.assetProxy = interface.ERC20Proxy(self.config["ExchangeV3"])
         self.COMPOracle = self.deployCOMPOracle()
-        self.veBalDelegator = VeBalDelegator.deploy({"from": self.deployer})
 
     def loadExchangeV3(self, address):
         with open("./abi/0x/ExchangeV3.json", "r") as f:

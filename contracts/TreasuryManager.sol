@@ -148,11 +148,15 @@ contract TreasuryManager is
     }
 
     function approveBalancer() external onlyOwner {
+        NOTE.safeApprove(address(BALANCER_VAULT), 0);
         NOTE.safeApprove(address(BALANCER_VAULT), type(uint256).max);
+        IERC20(address(WETH)).safeApprove(address(BALANCER_VAULT), 0);
         IERC20(address(WETH)).safeApprove(
             address(BALANCER_VAULT),
             type(uint256).max
         );
+        BAL.safeApprove(address(BALANCER_VAULT), 0);
+        BAL.safeApprove(address(BALANCER_VAULT), type(uint256).max);
     }
 
     function setPriceOracle(address tokenAddress, address oracleAddress)
@@ -237,7 +241,7 @@ contract TreasuryManager is
         emit InvestmentCoolDownUpdated(_coolDownTimeInSeconds);
     }
 
-    function delegateBalancerLPToken(uint256 amount) external ownerOrManager {
+    function delegateBalancerLiquidity(uint256 amount) external ownerOrManager {
         if (amount == type(uint256).max)
             amount = BAL_LIQUIDITY_TOKEN.balanceOf(address(this));
         BAL_LIQUIDITY_TOKEN.safeTransfer(VE_BAL_DELEGATOR, amount);
@@ -364,7 +368,7 @@ contract TreasuryManager is
         // Make sure the donated BPT is staked
         sNOTE.stakeAll();
 
-        uint256 noteSpotPrice = _getNOTESpotPrice();
+        uint256 noteSpotPrice = getNOTESpotPrice();
 
         // Calculate the max spot price based on the purchase limit
         uint256 maxPrice = noteOraclePrice +
@@ -392,7 +396,7 @@ contract TreasuryManager is
         return (assets, maxAmountsIn);
     }
 
-    function _getNOTESpotPrice() internal view returns (uint256) {
+    function getNOTESpotPrice() public view returns (uint256) {
         // prettier-ignore
         (
             /* address[] memory tokens */,

@@ -5,7 +5,7 @@ import "../interfaces/notional/IStakedNote.sol";
 
 abstract contract StakedNoteRef {
     IStakedNote public constant STAKED_NOTE =
-        IStakedNote(0x1344A36A1B56144C3Bc62E7757377D288fDE0369);
+        IStakedNote(0x38DE42F4BA8a35056b33A746A6b45bE9B1c3B9d2);
 
     /// @notice Only allows the `owner` to execute the function.
     modifier onlyOwner() {

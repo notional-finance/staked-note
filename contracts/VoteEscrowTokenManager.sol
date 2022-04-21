@@ -118,7 +118,7 @@ abstract contract VoteEscrowTokenManager is StakedNoteRef {
     }
 
     /// @notice returns total balance of tokens, vote-escrowed or liquid.
-    function _totalTokensManaged() internal view returns (uint256) {
+    function totalTokensManaged() public view returns (uint256) {
         return
             liquidToken.balanceOf(address(this)) +
             veToken.locked(address(this));

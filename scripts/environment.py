@@ -169,6 +169,7 @@ class Environment:
             self.balancerPool = self.loadBalancerPool(self.config['sNOTEPoolAddress'])
             self.poolId = self.config['sNOTEPoolId']
             self.sNOTE = self.upgrade_sNOTE(self.treasuryManager, True)
+            self.sNOTE.approveAndStakeAll({'from': self.deployer})
         else:
             self.balancerPool = self.loadBalancerPool(self.config['sNOTEPoolAddress'])
             self.poolId = self.config['sNOTEPoolId']
@@ -176,7 +177,6 @@ class Environment:
             self.sNOTEProxy = self.load_sNOTE(self.config['sNOTE'])
             # Upgrade sNOTE for staking
             self.upgrade_sNOTE(self.treasuryManager, False)
-        self.sNOTE.approveAndStakeAll({"from": self.deployer})
         self.treasuryManager = self.upgradeTreasuryManager()
         self.DAIToken = self.loadERC20Token("DAI")
         self.exchangeV3 = self.loadExchangeV3(self.config['ExchangeV3'])
@@ -259,7 +259,8 @@ class Environment:
             )
             self.sNOTEProxy.upgradeToAndCall(sNOTEImpl, initializeCallData, {'from': self.deployer})
         else:
-            self.sNOTEProxy.upgradeTo(sNOTEImpl, {'from': self.deployer})
+            stakeAllCalldata = sNOTEImpl.approveAndStakeAll.encode_input()
+            self.sNOTEProxy.upgradeToAndCall(sNOTEImpl, stakeAllCalldata, {'from': self.deployer})
         
         return self.load_sNOTE(self.sNOTEProxy.address)
 

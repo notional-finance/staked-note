@@ -290,7 +290,6 @@ def test_no_mint_during_cooldown():
         env.sNOTE.mintFromETH(1e8, 0,{"from": testAccounts.ETHWhale})
         env.sNOTE.mintFromWETH(1e8, 0, 0, {"from": testAccounts.ETHWhale})
 
-@pytest.mark.only
 def test_redeem():
     env = create_environment()
     testAccounts = TestAccounts()
@@ -404,7 +403,6 @@ def test_transfer_with_delegates():
     assert env.sNOTE.getVotes(testAccounts.ETHWhale) == 0
     assert env.sNOTE.getVotes(env.deployer) == votesStarting
 
-@pytest.mark.only
 def test_cannot_transfer_inside_redeem_window():
     env = create_environment()
     testAccounts = TestAccounts()
@@ -493,7 +491,7 @@ def test_get_voting_power_single_staker_price_increasing():
     assert pytest.approx(totalVotingPower, abs=1000) == 325847638361984
 
     # Check voting power of the account
-    votingPower = env.sNOTE.getVotingPower(env.sNOTE.balanceOf(testAccounts.WETHWhale))
+    votingPower = env.sNOTE.votingPowerWithoutDelegation(testAccounts.WETHWhale)
     assert pytest.approx(votingPower, abs=1000) == 479530715
     assert pytest.approx(votingPower / totalVotingPower, abs=1e-8) == supplyShare
 
@@ -526,7 +524,7 @@ def test_get_voting_power_single_staker_price_decreasing_fast():
     assert pytest.approx(totalVotingPower, abs=1000) == 325847958047792
 
     # Check voting power of the account
-    votingPower = env.sNOTE.getVotingPower(env.sNOTE.balanceOf(testAccounts.NOTEWhale))
+    votingPower = env.sNOTE.votingPowerWithoutDelegation(testAccounts.NOTEWhale)
     assert pytest.approx(votingPower, abs=1000) == 799216523
     assert pytest.approx(votingPower / totalVotingPower, abs=1e-8) == supplyShare
 
@@ -575,7 +573,7 @@ def test_get_voting_power_single_staker_price_decreasing_slow():
     assert pytest.approx(totalVotingPower, abs=1000) == 325847958047792
 
     # Check voting power of the account
-    votingPower = env.sNOTE.getVotingPower(env.sNOTE.balanceOf(testAccounts.NOTEWhale))
+    votingPower = env.sNOTE.votingPowerWithoutDelegation(testAccounts.NOTEWhale)
     assert pytest.approx(votingPower, abs=1000) == 799216523
     assert pytest.approx(votingPower / totalVotingPower, abs=1e-8) == supplyShare
 

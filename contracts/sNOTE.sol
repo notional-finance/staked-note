@@ -225,6 +225,8 @@ contract sNOTE is
             address(this),
             bptAmount
         );
+
+        // This will stake BPT into the liquidity gauge
         _mint(msg.sender, bptAmount);
 
         (uint256 wethAmount, uint256 noteAmount) = getTokenClaimForBPT(bptAmount);
@@ -311,9 +313,10 @@ contract sNOTE is
         // Don't use _bptHeld here because we are just detecting the change
         // in BPT tokens from minting
         uint256 bptAfter = BALANCER_POOL_TOKEN.balanceOf(address(this));
+        // Balancer pool token amounts must increase
         uint256 bptChange = bptAfter - bptBefore;
 
-        // Balancer pool token amounts must increase
+        // This will stake BPT into the liquidity gauge
         _mint(msg.sender, bptChange);
 
         emit SNoteMinted(
@@ -342,7 +345,7 @@ contract sNOTE is
         BALANCER_VAULT.exitPool(
             NOTE_ETH_POOL_ID,
             address(this),
-            payable(msg.sender), // Owner will receive the underyling assets
+            payable(msg.sender), // Owner will receive the underlying assets
             IVault.ExitPoolRequest(
                 assets,
                 minAmountsOut,

@@ -1,42 +1,29 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity =0.8.11;
 
-import "./StakedNoteRef.sol";
+import "./utils/BoringOwnable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-
-interface IVeToken {
-    function balanceOf(address) external view returns (uint256);
-
-    function locked(address) external view returns (uint256);
-
-    function create_lock(uint256 value, uint256 unlock_time) external;
-
-    function increase_amount(uint256 value) external;
-
-    function increase_unlock_time(uint256 unlock_time) external;
-
-    function withdraw() external;
-
-    function locked__end(address) external view returns (uint256);
-
-    function checkpoint() external;
-
-    function commit_smart_wallet_checker(address) external;
-
-    function apply_smart_wallet_checker() external;
-}
+import "../interfaces/notional/IStakedNote.sol";
+import "../interfaces/balancer/IVeToken.sol";
 
 /// @title Vote-escrowed Token Manager
 /// Used to permanently lock tokens in a vote-escrow contract, and refresh
 /// the lock duration as needed.
 /// @author Fei Protocol
-abstract contract VoteEscrowTokenManager is StakedNoteRef {
+abstract contract VoteEscrowTokenManager is BoringOwnable {
     using SafeERC20 for ERC20;
 
     // Events
     event Lock(uint256 cummulativeTokensLocked, uint256 lockHorizon);
     event Unlock(uint256 tokensUnlocked);
+    event LockDurationUpdated(uint256 newLockDuration);
+    event LiquidityTokenUpdated(address newLiquidityToken);
+    event VeTokenUpdated(address newVeToken);
+    event TokenTransferredToManager(uint256 amount);
+
+    /// @notice Staked NOTE contract
+    IStakedNote public immutable sNOTE;
 
     /// @notice One week, in seconds. Vote-locking is rounded down to weeks.
     uint256 private constant WEEK = 7 * 86400; // 1 week, in seconds
@@ -45,46 +32,68 @@ abstract contract VoteEscrowTokenManager is StakedNoteRef {
     uint256 public lockDuration;
 
     /// @notice The vote-escrowed token address
-    IVeToken public immutable veToken;
+    IVeToken public veToken;
 
     /// @notice The token address
-    ERC20 public immutable liquidToken;
+    ERC20 public liquidityToken;
 
     /// @notice VoteEscrowTokenManager token Snapshot Delegator PCV Deposit constructor
-    /// @param _liquidToken the token to lock for vote-escrow
+    /// @param _liquidityToken the token to lock for vote-escrow (BAL/ETH LP Token)
     /// @param _veToken the vote-escrowed token used in governance
     /// @param _lockDuration amount of time (in seconds) tokens will  be vote-escrowed for
     constructor(
-        ERC20 _liquidToken,
+        ERC20 _liquidityToken,
         IVeToken _veToken,
+        IStakedNote _sNOTE,
         uint256 _lockDuration
     ) {
-        liquidToken = _liquidToken;
+        liquidityToken = _liquidityToken;
         veToken = _veToken;
+        sNOTE = _sNOTE;
         lockDuration = _lockDuration;
     }
 
     /// @notice Set the amount of time tokens will be vote-escrowed for in lock() calls
+    /// @param newLockDuration new lock duration
     function setLockDuration(uint256 newLockDuration) external onlyOwner {
         lockDuration = newLockDuration;
+        emit LockDurationUpdated(newLockDuration);
+    }
+
+    /// @notice Set the BAL/ETH liquidity token address
+    /// @param newLiquidityToken new liquidity token address
+    function setLiquidityToken(address newLiquidityToken) external onlyOwner {
+        require(address(liquidityToken) != newLiquidityToken, "Same liquidity token");
+
+        liquidityToken = ERC20(newLiquidityToken);
+        emit LiquidityTokenUpdated(newLiquidityToken);
+    }
+
+    /// @notice Set the VeToken address
+    /// @param newVeToken new VeToken address
+    function setVeToken(address newVeToken) external onlyOwner {
+        require(address(veToken) != newVeToken, "Same VeToken");
+
+        veToken = IVeToken(newVeToken);
+        emit VeTokenUpdated(newVeToken);
     }
 
     /// @notice Deposit tokens to get veTokens. Set lock duration to lockDuration.
     /// The only way to withdraw tokens will be to pause this contract
     /// for lockDuration and then call exitLock().
     function lock() external onlyOwner {
-        uint256 tokenBalance = liquidToken.balanceOf(address(this));
+        uint256 tokenBalance = liquidityToken.balanceOf(address(this));
         uint256 locked = veToken.locked(address(this));
         uint256 lockHorizon = ((block.timestamp + lockDuration) / WEEK) * WEEK;
 
         // First lock
         if (tokenBalance != 0 && locked == 0) {
-            liquidToken.approve(address(veToken), tokenBalance);
+            liquidityToken.approve(address(veToken), tokenBalance);
             veToken.create_lock(tokenBalance, lockHorizon);
         }
         // Increase amount of tokens locked & refresh duration to lockDuration
         else if (tokenBalance != 0 && locked != 0) {
-            liquidToken.approve(address(veToken), tokenBalance);
+            liquidityToken.approve(address(veToken), tokenBalance);
             veToken.increase_amount(tokenBalance);
             if (veToken.locked__end(address(this)) != lockHorizon) {
                 veToken.increase_unlock_time(lockHorizon);
@@ -107,22 +116,29 @@ abstract contract VoteEscrowTokenManager is StakedNoteRef {
     function exitLock() external onlyOwner {
         veToken.withdraw();
 
-        emit Unlock(liquidToken.balanceOf(address(this)));
+        emit Unlock(liquidityToken.balanceOf(address(this)));
     }
 
     /// @notice Allows the owner to transfer tokens to the treasury manager
     /// @param token token address
     /// @param amount amount to transfer
-    function transferTokenToManagerContract(address token, uint256 amount) external onlyOwner {
+    function transferTokenToManagerContract(address token, uint256 amount)
+        external
+        onlyOwner
+    {
         if (amount == type(uint256).max)
             amount = ERC20(token).balanceOf(address(this));
-        ERC20(token).safeTransfer(STAKED_NOTE.TREASURY_MANAGER_CONTRACT(), amount);
+        ERC20(token).safeTransfer(
+            sNOTE.TREASURY_MANAGER_CONTRACT(),
+            amount
+        );
+        emit TokenTransferredToManager(amount);
     }
 
     /// @notice returns total balance of tokens, vote-escrowed or liquid.
     function totalTokensManaged() public view returns (uint256) {
         return
-            liquidToken.balanceOf(address(this)) +
+            liquidityToken.balanceOf(address(this)) +
             veToken.locked(address(this));
     }
 }

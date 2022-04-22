@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity =0.8.11;
 
-import "./StakedNoteRef.sol";
+import "./utils/BoringOwnable.sol";
 
 interface IMetagovGovernor {
     // OpenZeppelin Governor propose signature
@@ -30,7 +30,7 @@ interface IMetagovGovernor {
 
 /// @title Abstract class to interact with an OZ governor.
 /// @author Fei Protocol
-abstract contract GovernorVoter is StakedNoteRef {
+abstract contract GovernorVoter is BoringOwnable {
 
     // Events
     event Proposed(IMetagovGovernor indexed governor, uint256 proposalId);

@@ -5,6 +5,10 @@ import "./VoteEscrowTokenManager.sol";
 import "./LiquidityGaugeVoter.sol";
 import "./GovernorVoter.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "../interfaces/balancer/ILiquidityGauge.sol";
+import "../interfaces/balancer/ILiquidityGaugeController.sol";
+import "../interfaces/balancer/IVeToken.sol";
+import "../interfaces/notional/IStakedNote.sol";
 
 /// @title 80-BAL-20-WETH BPT PCV Deposit
 /// @author Fei Protocol
@@ -13,20 +17,17 @@ contract VeBalDelegator is
     LiquidityGaugeVoter,
     GovernorVoter
 {
-    address public constant B_80BAL_20WETH =
-        0x5c6Ee304399DBdB9C8Ef030aB642B10820DB8F56;
-    address public constant VE_BAL = 0xC128a9954e6c874eA3d62ce62B468bA073093F25;
-    address public constant BALANCER_GAUGE_CONTROLLER =
-        0xC128468b7Ce63eA702C1f104D55A2566b13D3ABD;
+    uint256 private constant YEAR = 365 * 86400; // 1 year, in seconds
 
     /// @notice veBAL token manager
-    constructor()
-        VoteEscrowTokenManager(
-            ERC20(B_80BAL_20WETH), // liquid token
-            IVeToken(VE_BAL), // vote-escrowed token
-            365 * 86400 // vote-escrow time = 1 year
-        )
-        LiquidityGaugeVoter(BALANCER_GAUGE_CONTROLLER)
+    constructor(
+        ERC20 _liquidityToken,
+        IVeToken _veBal,
+        address _gaugeController,
+        IStakedNote _sNOTE
+    )
+        VoteEscrowTokenManager(_liquidityToken, _veBal, _sNOTE, YEAR)
+        LiquidityGaugeVoter(gaugeController)
         GovernorVoter()
     {
         owner = msg.sender;

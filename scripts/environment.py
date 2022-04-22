@@ -37,6 +37,8 @@ EnvironmentConfig = {
     "COMP": "0xc00e94cb662c3520282e6f5717214004a7f26888",
     "BAL": "0xba100000625a3754423978a60c9317c58a424e3D",
     "BALETH": "0x5c6Ee304399DBdB9C8Ef030aB642B10820DB8F56",
+    "VeToken": "0xC128a9954e6c874eA3d62ce62B468bA073093F25",
+    "GaugeController": "0xC128468b7Ce63eA702C1f104D55A2566b13D3ABD",
     "COMP_USD_Oracle": "0xdbd020caef83efd542f4de03e3cf0c28a4428bd5",
     "ETH_USD_Oracle": "0x5f4ec3df9cbd43714fe2740f5e3616155c5b8419",
     "Notional": "0x1344a36a1b56144c3bc62e7757377d288fde0369",
@@ -181,7 +183,13 @@ class Environment:
             self.sNOTEProxy = self.load_sNOTE(self.config['sNOTE'])
             # Upgrade sNOTE for staking
             self.upgrade_sNOTE(self.treasuryManager, False)
-        self.veBalDelegator = VeBalDelegator.deploy({"from": self.deployer})
+        self.veBalDelegator = VeBalDelegator.deploy(
+            EnvironmentConfig["BALETH"],
+            EnvironmentConfig["VeToken"],
+            EnvironmentConfig["GaugeController"],
+            self.sNOTE.address,
+            {"from": self.deployer}
+        )
         self.balLiquidityToken = self.loadERC20Token("BALETH")
         self.treasuryManager = self.upgradeTreasuryManager()
         self.DAIToken = self.loadERC20Token("DAI")

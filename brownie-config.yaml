@@ -10,12 +10,12 @@ compiler:
 networks:
   default: development
   development:
-    hardhat-fork:
+    mainnet-fork:
       cmd_settings:
-        fork_block: 14502107
-  hardhat-fork:
+        fork_block: 14609100
+  mainnet-fork:
     cmd_settings:
-      fork_block: 14502107
+      fork_block: 14609100
 
 reports:
   exclude_paths:

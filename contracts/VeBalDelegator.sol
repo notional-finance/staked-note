@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity =0.8.11;
 
+import "./SnapshotDelegator.sol";
 import "./VoteEscrowTokenManager.sol";
 import "./LiquidityGaugeVoter.sol";
 import "./GovernorVoter.sol";
@@ -13,6 +14,7 @@ import "../interfaces/notional/IStakedNote.sol";
 /// @title 80-BAL-20-WETH BPT PCV Deposit
 /// @author Fei Protocol
 contract VeBalDelegator is
+    SnapshotDelegator,
     VoteEscrowTokenManager,
     LiquidityGaugeVoter,
     GovernorVoter
@@ -24,8 +26,12 @@ contract VeBalDelegator is
         ERC20 _liquidityToken,
         IVeToken _veBal,
         address _gaugeController,
-        IStakedNote _sNOTE
+        IStakedNote _sNOTE,
+        IDelegateRegistry _delegateRegistry,
+        bytes32 _spaceId,
+        address _initialDelegate
     )
+        SnapshotDelegator(_delegateRegistry, spaceId, _initialDelegate)
         VoteEscrowTokenManager(_liquidityToken, _veBal, _sNOTE, YEAR)
         LiquidityGaugeVoter(gaugeController)
         GovernorVoter()

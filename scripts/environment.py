@@ -2,6 +2,7 @@ import json
 import eth_abi
 import eth_keys
 import time
+from eth_utils import keccak
 from brownie import (
     ZERO_ADDRESS, 
     accounts, 
@@ -46,6 +47,7 @@ EnvironmentConfig = {
     "LiquidityGauge": "0x40ac67ea5bd1215d99244651cc71a03468bce6c0",
     "BalancerMinter": "0x239e55F427D44C3cc793f49bFB507ebe76638a2b",
     "ExchangeV3": "0x61935cbdd02287b511119ddb11aeb42f1593b7ef",
+    "DelegateRegistry": "0x469788fE6E9E9681C6ebF3bF78e7Fd26Fc015446",
     "BalEthPoolId": "0x5c6ee304399dbdb9c8ef030ab642b10820db8f56000200000000000000000014",
     "balancerPoolConfig": {
         "name": "Staked NOTE Weighted Pool",
@@ -188,6 +190,9 @@ class Environment:
             EnvironmentConfig["VeToken"],
             EnvironmentConfig["GaugeController"],
             self.sNOTE.address,
+            EnvironmentConfig["DelegateRegistry"],
+            keccak(text="balancer.eth"),
+            self.deployer,
             {"from": self.deployer}
         )
         self.balLiquidityToken = self.loadERC20Token("BALETH")

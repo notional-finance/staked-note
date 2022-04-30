@@ -233,7 +233,7 @@ def test_trading_WBTC_good_price():
     env.treasuryManager.setSlippageLimit(env.wbtc.address, 0.9e8, {"from": env.deployer})
     env.wbtc.transfer(env.treasuryManager.address, 1e8, { "from": testAccounts.WBTCWhale })
     env.weth.approve(env.exchangeV3.address, 2 ** 255, { "from": testAccounts.WETHWhale })
-    order = Order(env.assetProxy, env.treasuryManager.address, env.wbtc.address, 1e8, env.weth.address, 12.3e18)
+    order = Order(env.assetProxy, env.treasuryManager.address, env.wbtc.address, 1e8, env.weth.address, 14e18)
     WBTCBefore = env.wbtc.balanceOf(env.treasuryManager.address)
     ETHBefore = env.weth.balanceOf(testAccounts.WETHWhale)
     env.exchangeV3.fillOrder(
@@ -245,7 +245,7 @@ def test_trading_WBTC_good_price():
     WBTCAfter = env.wbtc.balanceOf(env.treasuryManager.address)
     ETHAfter = env.weth.balanceOf(testAccounts.WETHWhale)
     assert WBTCBefore - WBTCAfter == 1e8
-    assert ETHBefore - ETHAfter == 12.3e18
+    assert ETHBefore - ETHAfter == 14e18
 
 
 def test_trading_WBTC_bad_price():
@@ -354,10 +354,10 @@ def test_invest_eth():
     chain.sleep(3600)
     chain.mine()
     bptBefore = env.liquidityGauge.balanceOf(env.sNOTE.address)
-    assert pytest.approx(bptBefore, abs=1000) == 981770012526898092964803
+    assert pytest.approx(bptBefore, abs=1000) == 1107294716505670335394675
     env.treasuryManager.investWETHAndNOTE(0.1e18, 0, 0, {"from": testAccounts.testManager})
     bptAfter = env.liquidityGauge.balanceOf(env.sNOTE.address)
-    assert pytest.approx(bptAfter, abs=1000) == 981846341102242643366015
+    assert pytest.approx(bptAfter, abs=1000) == 1107378060149034396142624
 
 def test_vebal():
     testAccounts = TestAccounts()
@@ -370,7 +370,7 @@ def test_vebal():
     # Add liquidity
     assert env.balLiquidityToken.balanceOf(env.treasuryManager.address) == 0
     env.treasuryManager.addBalancerLiquidity(0, 1000e18, 0, {"from": testAccounts.testManager})
-    assert pytest.approx(env.balLiquidityToken.balanceOf(env.treasuryManager.address), abs=1000) == 414349726186765950603
+    assert pytest.approx(env.balLiquidityToken.balanceOf(env.treasuryManager.address), abs=1000) == 413106180762199903165
 
     # Delegate liquidity to VeBalDelegator
     env.treasuryManager.delegateBalancerLiquidity(
@@ -378,15 +378,37 @@ def test_vebal():
         {"from": testAccounts.testManager}
     )
     assert env.balLiquidityToken.balanceOf(env.treasuryManager.address) == 0
-    assert pytest.approx(env.balLiquidityToken.balanceOf(env.veBalDelegator.address), abs=1000) == 414349726186765950603
+    assert pytest.approx(env.balLiquidityToken.balanceOf(env.veBalDelegator.address), abs=1000) == 413106180762199903165
+
+    # Whitelist VeBalDelegator to lock
+    env.smartWalletChecker.allowlistAddress(env.veBalDelegator.address, {"from": testAccounts.balancerAdmin})
+
+    # Only owner can lock
+    with brownie.reverts():
+        env.veBalDelegator.lock({"from": testAccounts.WETHWhale})
+
+    # Lock VeBAL
+    env.veBalDelegator.lock({"from": env.veBalDelegator.owner()})
+    assert env.balLiquidityToken.balanceOf(env.veBalDelegator.address) == 0
+
+    # Can't unlock
+    with brownie.reverts():
+        env.veBalDelegator.exitLock({"from": env.veBalDelegator.owner()})
+
+    # After 1 year
+    chain.sleep(365 * 24 * 60 * 60 + 1)
+    chain.mine()
+
+    # Unlock VeBAL
+    env.veBalDelegator.exitLock({"from": env.veBalDelegator.owner()})
 
     # Withdraw liquidity from VeBalDelegator
     env.veBalDelegator.transferTokenToManagerContract(env.balLiquidityToken.address, 2**256 - 1, {"from": env.sNOTE.owner()})
     assert env.balLiquidityToken.balanceOf(env.veBalDelegator.address) == 0
-    assert pytest.approx(env.balLiquidityToken.balanceOf(env.treasuryManager.address), abs=1000) == 414349726186765950603
+    assert pytest.approx(env.balLiquidityToken.balanceOf(env.treasuryManager.address), abs=1000) == 413106180762199903165
 
     # Remove liquidity
     env.treasuryManager.removeBalancerLiquidity(0, 0, 2**256 - 1, {"from": testAccounts.testManager})
     assert env.balLiquidityToken.balanceOf(env.treasuryManager.address) == 0
-    assert pytest.approx(env.bal.balanceOf(env.treasuryManager.address), abs=1000) == 999798413393601360895808
-    assert pytest.approx(env.weth.balanceOf(env.treasuryManager.address), abs=1000) == 979069248073433495
+    assert pytest.approx(env.bal.balanceOf(env.treasuryManager.address), abs=1000) == 999798412496769609290880
+    assert pytest.approx(env.weth.balanceOf(env.treasuryManager.address), abs=1000) == 967956203471219708

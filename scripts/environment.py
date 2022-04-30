@@ -39,6 +39,7 @@ EnvironmentConfig = {
     "BAL": "0xba100000625a3754423978a60c9317c58a424e3D",
     "BALETH": "0x5c6Ee304399DBdB9C8Ef030aB642B10820DB8F56",
     "VeToken": "0xC128a9954e6c874eA3d62ce62B468bA073093F25",
+    "SmartWalletChecker": "0x7869296efd0a76872fee62a058c8fbca5c1c826c", # For whitelisting VeBal
     "GaugeController": "0xC128468b7Ce63eA702C1f104D55A2566b13D3ABD",
     "COMP_USD_Oracle": "0xdbd020caef83efd542f4de03e3cf0c28a4428bd5",
     "ETH_USD_Oracle": "0x5f4ec3df9cbd43714fe2740f5e3616155c5b8419",
@@ -148,19 +149,21 @@ class TestAccounts:
     def __init__(self) -> None:
         self.DAIWhale = accounts.at("0x6dfaf865a93d3b0b5cfd1b4db192d1505676645b", force=True) # A good source of DAI
         self.cDAIWhale = accounts.at("0x33b890d6574172e93e58528cd99123a88c0756e9", force=True) # A good source of cDAI
-        self.ETHWhale = accounts.at("0xAE527cE8c5B66D8900B6d1E978396615C168e251", force=True) # A good source of ETH
+        self.ETHWhale = accounts.at("0x9acb5CE4878144a74eEeDEda54c675AA59E0D3D2", force=True) # A good source of ETH
         self.cETHWhale = accounts.at("0x1a1cd9c606727a7400bb2da6e4d5c70db5b4cade", force=True) # A good source of cETH
         self.NOTEWhale = accounts.at("0x22341fB5D92D3d801144aA5A925F401A91418A05", force=True)
         self.WETHWhale = accounts.at("0x6555e1cc97d3cba6eaddebbcd7ca51d75771e0b8", force=True)
         self.USDCWhale = accounts.at("0x6bb273bf25220d13c9b46c6ed3a5408a3ba9bcc6", force=True)
         self.WBTCWhale = accounts.at("0x92c96306289a7322174d6e091b9e36b14210e4f5", force=True)
         self.BALWhale = accounts.at("0xcdcebf1f28678eb4a1478403ba7f34c94f7ddbc5", force=True)
+        self.balancerAdmin = accounts.at("0x10a19e7ee7d7f8a52822f6817de8ea18204f2e4f", force=True)
         self.testManager = accounts.add('43a6634021d4b1ff7fd350843eebaa7cf547aefbf9503c33af0ec27c83f76827')
 
 class Environment:
     def __init__(self, config, deployer, useFresh) -> None:
         self.config = config
         self.deployer = deployer
+        self.smartWalletChecker = interface.ISmartWalletChecker(self.config["SmartWalletChecker"])
         self.balancerVault = self.loadBalancerVault(self.config["BalancerVault"])
         self.pool2TokensFactory = self.loadPool2TokensFactory(self.config["WeightedPool2TokensFactory"])
         self.note = self.loadNOTE(self.config["NOTE"])

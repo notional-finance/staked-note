@@ -395,9 +395,23 @@ def test_vebal():
     with brownie.reverts():
         env.veBalDelegator.exitLock({"from": env.veBalDelegator.owner()})
 
+    # After at least 1 week
+    chain.sleep(8 * 24 * 60 * 60)
+    chain.mine()
+
+    # Deposit BAL reward token
+    env.bal.approve(env.feeDistributor.address, 2**255, {"from": testAccounts.BALWhale})
+    env.feeDistributor.depositToken(env.bal.address, 1e18, {"from": testAccounts.BALWhale})
+
     # After 1 year
     chain.sleep(365 * 24 * 60 * 60 + 1)
     chain.mine()
+
+    # Test veBAL token claiming
+    balBefore = env.bal.balanceOf(env.veBalDelegator.address)
+    env.veBalDelegator.claimTokens([env.bal.address], {"from": env.veBalDelegator.owner()})
+    balAfter = env.bal.balanceOf(env.veBalDelegator.address)
+    assert pytest.approx(balAfter - balBefore, abs=1000) == 408087728526169
 
     # Unlock VeBAL
     env.veBalDelegator.exitLock({"from": env.veBalDelegator.owner()})

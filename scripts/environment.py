@@ -164,6 +164,7 @@ class Environment:
     def __init__(self, config, deployer, useFresh) -> None:
         self.config = config
         self.deployer = deployer
+        self.feeDistributor = interface.IFeeDistributor(self.config["FeeDistributor"])
         self.smartWalletChecker = interface.ISmartWalletChecker(self.config["SmartWalletChecker"])
         self.balancerVault = self.loadBalancerVault(self.config["BalancerVault"])
         self.pool2TokensFactory = self.loadPool2TokensFactory(self.config["WeightedPool2TokensFactory"])

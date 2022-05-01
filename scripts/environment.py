@@ -39,6 +39,7 @@ EnvironmentConfig = {
     "BAL": "0xba100000625a3754423978a60c9317c58a424e3D",
     "BALETH": "0x5c6Ee304399DBdB9C8Ef030aB642B10820DB8F56",
     "VeToken": "0xC128a9954e6c874eA3d62ce62B468bA073093F25",
+    "FeeDistributor": "0x26743984e3357eFC59f2fd6C1aFDC310335a61c9",
     "SmartWalletChecker": "0x7869296efd0a76872fee62a058c8fbca5c1c826c", # For whitelisting VeBal
     "GaugeController": "0xC128468b7Ce63eA702C1f104D55A2566b13D3ABD",
     "COMP_USD_Oracle": "0xdbd020caef83efd542f4de03e3cf0c28a4428bd5",
@@ -191,6 +192,7 @@ class Environment:
         self.veBalDelegator = VeBalDelegator.deploy(
             EnvironmentConfig["BALETH"],
             EnvironmentConfig["VeToken"],
+            EnvironmentConfig["FeeDistributor"],
             EnvironmentConfig["GaugeController"],
             self.sNOTE.address,
             EnvironmentConfig["DelegateRegistry"],

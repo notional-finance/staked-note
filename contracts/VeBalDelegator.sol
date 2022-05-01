@@ -8,6 +8,7 @@ import "./GovernorVoter.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "../interfaces/balancer/ILiquidityGauge.sol";
 import "../interfaces/balancer/ILiquidityGaugeController.sol";
+import "../interfaces/balancer/IFeeDistributor.sol";
 import "../interfaces/balancer/IVeToken.sol";
 import "../interfaces/notional/IStakedNote.sol";
 
@@ -25,14 +26,16 @@ contract VeBalDelegator is
     constructor(
         ERC20 _liquidityToken,
         IVeToken _veBal,
+        IFeeDistributor _feeDistributor,
         address _gaugeController,
         IStakedNote _sNOTE,
         IDelegateRegistry _delegateRegistry,
         bytes32 _spaceId,
         address _initialDelegate
+        
     )
         SnapshotDelegator(_delegateRegistry, spaceId, _initialDelegate)
-        VoteEscrowTokenManager(_liquidityToken, _veBal, _sNOTE, YEAR)
+        VoteEscrowTokenManager(_liquidityToken, _veBal, _feeDistributor, _sNOTE, YEAR)
         LiquidityGaugeVoter(gaugeController)
         GovernorVoter()
     {

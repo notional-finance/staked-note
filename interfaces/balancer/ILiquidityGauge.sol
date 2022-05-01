@@ -5,6 +5,8 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 interface ILiquidityGauge is IERC20 {
     function deposit(uint256 value) external;
 
+    function deposit(uint256 _value, address _addr, bool _claim_rewards) external;
+
     function withdraw(uint256 value, bool claim_rewards) external;
 
     function claim_rewards() external;

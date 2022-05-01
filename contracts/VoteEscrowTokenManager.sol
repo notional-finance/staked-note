@@ -3,16 +3,17 @@ pragma solidity =0.8.11;
 
 import "./utils/BoringOwnable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../interfaces/notional/IStakedNote.sol";
 import "../interfaces/balancer/IVeToken.sol";
+import "../interfaces/balancer/IFeeDistributor.sol";
 
 /// @title Vote-escrowed Token Manager
 /// Used to permanently lock tokens in a vote-escrow contract, and refresh
 /// the lock duration as needed.
 /// @author Fei Protocol
 abstract contract VoteEscrowTokenManager is BoringOwnable {
-    using SafeERC20 for ERC20;
+    using SafeERC20 for IERC20;
 
     // Events
     event Lock(uint256 cummulativeTokensLocked, uint256 lockHorizon);
@@ -20,7 +21,9 @@ abstract contract VoteEscrowTokenManager is BoringOwnable {
     event LockDurationUpdated(uint256 newLockDuration);
     event LiquidityTokenUpdated(address newLiquidityToken);
     event VeTokenUpdated(address newVeToken);
+    event FeeDistributorUpdated(address newFeeDistributor);
     event TokenTransferredToManager(uint256 amount);
+    event RewardTokensClaimed(IERC20[] tokens, uint256[] amounts);
 
     /// @notice Staked NOTE contract
     IStakedNote public immutable sNOTE;
@@ -35,20 +38,25 @@ abstract contract VoteEscrowTokenManager is BoringOwnable {
     IVeToken public veToken;
 
     /// @notice The token address
-    ERC20 public liquidityToken;
+    IERC20 public liquidityToken;
+
+    /// @notice The fee distributor address
+    IFeeDistributor public feeDistributor;
 
     /// @notice VoteEscrowTokenManager token Snapshot Delegator PCV Deposit constructor
     /// @param _liquidityToken the token to lock for vote-escrow (BAL/ETH LP Token)
     /// @param _veToken the vote-escrowed token used in governance
     /// @param _lockDuration amount of time (in seconds) tokens will  be vote-escrowed for
     constructor(
-        ERC20 _liquidityToken,
+        IERC20 _liquidityToken,
         IVeToken _veToken,
+        IFeeDistributor _feeDistributor,
         IStakedNote _sNOTE,
         uint256 _lockDuration
     ) {
         liquidityToken = _liquidityToken;
         veToken = _veToken;
+        feeDistributor = _feeDistributor;
         sNOTE = _sNOTE;
         lockDuration = _lockDuration;
     }
@@ -63,9 +71,12 @@ abstract contract VoteEscrowTokenManager is BoringOwnable {
     /// @notice Set the BAL/ETH liquidity token address
     /// @param newLiquidityToken new liquidity token address
     function setLiquidityToken(address newLiquidityToken) external onlyOwner {
-        require(address(liquidityToken) != newLiquidityToken, "Same liquidity token");
+        require(
+            address(liquidityToken) != newLiquidityToken,
+            "Same liquidity token"
+        );
 
-        liquidityToken = ERC20(newLiquidityToken);
+        liquidityToken = IERC20(newLiquidityToken);
         emit LiquidityTokenUpdated(newLiquidityToken);
     }
 
@@ -76,6 +87,18 @@ abstract contract VoteEscrowTokenManager is BoringOwnable {
 
         veToken = IVeToken(newVeToken);
         emit VeTokenUpdated(newVeToken);
+    }
+
+    /// @notice Set the fee distributor address
+    /// @param newFeeDistributor new VeToken address
+    function setFeeDistributor(address newFeeDistributor) external onlyOwner {
+        require(
+            address(feeDistributor) != newFeeDistributor,
+            "Same FeeDistributor"
+        );
+
+        feeDistributor = IFeeDistributor(newFeeDistributor);
+        emit FeeDistributorUpdated(newFeeDistributor);
     }
 
     /// @notice Deposit tokens to get veTokens. Set lock duration to lockDuration.
@@ -127,12 +150,30 @@ abstract contract VoteEscrowTokenManager is BoringOwnable {
         onlyOwner
     {
         if (amount == type(uint256).max)
-            amount = ERC20(token).balanceOf(address(this));
-        ERC20(token).safeTransfer(
-            sNOTE.TREASURY_MANAGER_CONTRACT(),
-            amount
-        );
+            amount = IERC20(token).balanceOf(address(this));
+        IERC20(token).safeTransfer(sNOTE.TREASURY_MANAGER_CONTRACT(), amount);
         emit TokenTransferredToManager(amount);
+    }
+
+    /// @notice Claims reward tokens from the fee distributor
+    /// @param tokens a list of tokens to claim
+    function claimTokens(IERC20[] calldata tokens)
+        external
+        onlyOwner
+    {
+        uint256[] memory balancesBefore = new uint256[](tokens.length);
+        for (uint256 i; i < tokens.length; i++) {
+            balancesBefore[i] = tokens[i].balanceOf(address(this));
+        }
+
+        feeDistributor.claimTokens(address(this), tokens);
+        
+        uint256[] memory balancesTransferred = new uint256[](tokens.length);
+        for (uint256 i; i < tokens.length; i++) {
+            balancesTransferred[i] = tokens[i].balanceOf(address(this)) - balancesBefore[i];
+        }
+        
+        emit RewardTokensClaimed(tokens, balancesTransferred);
     }
 
     /// @notice returns total balance of tokens, vote-escrowed or liquid.

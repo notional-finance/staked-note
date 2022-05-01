@@ -188,6 +188,8 @@ contract TreasuryManager is
         emit NOTEPurchaseLimitUpdated(purchaseLimit);
     }
 
+    /// @notice Sets the BAL purchase limit
+    /// @param purchaseLimit purchase limit denominated in WETH
     function setBALPurchaseLimit(uint256 purchaseLimit) external onlyOwner {
         balPurchaseLimit = purchaseLimit;
         emit BALPurchaseLimitUpdated(purchaseLimit);

@@ -387,7 +387,7 @@ def test_transfer_with_delegates():
     
     # Sleep through the oracle window
     # TODO: remove after full oracle initialization
-    chain.sleep(env.sNOTE.VOTING_POWER_ORACLE_SECONDS() + 1)
+    chain.sleep(env.sNOTE.votingOracleWindowInSeconds() + 1)
     chain.mine()
 
     assert txn.events["SNoteMinted"]["account"] == testAccounts.ETHWhale
@@ -455,7 +455,7 @@ def test_get_voting_power_single_staker_price_increasing():
 
     # Sleep through the oracle window
     # TODO: remove after full oracle initialization
-    chain.sleep(env.sNOTE.VOTING_POWER_ORACLE_SECONDS() + 1)
+    chain.sleep(env.sNOTE.votingOracleWindowInSeconds() + 1)
     chain.mine()
 
     # Check voting power of the entire supply
@@ -481,7 +481,7 @@ def test_get_voting_power_single_staker_price_increasing():
 
     # Sleep through the oracle window
     # TODO: remove after full oracle initialization
-    chain.sleep(env.sNOTE.VOTING_POWER_ORACLE_SECONDS() + 1)
+    chain.sleep(env.sNOTE.votingOracleWindowInSeconds() + 1)
     chain.mine()
 
     # Check voting power of the entire supply
@@ -514,7 +514,7 @@ def test_get_voting_power_single_staker_price_decreasing_fast():
 
     # Sleep through the oracle window
     # TODO: remove after full oracle initialization
-    chain.sleep(env.sNOTE.VOTING_POWER_ORACLE_SECONDS() + 1)
+    chain.sleep(env.sNOTE.votingOracleWindowInSeconds() + 1)
     chain.mine()
 
     # Check voting power of the entire supply
@@ -563,7 +563,7 @@ def test_get_voting_power_single_staker_price_decreasing_slow():
 
     # Sleep through the oracle window
     # TODO: remove after full oracle initialization
-    chain.sleep(env.sNOTE.VOTING_POWER_ORACLE_SECONDS() + 1)
+    chain.sleep(env.sNOTE.votingOracleWindowInSeconds() + 1)
     chain.mine()
 
     # Check voting power of the entire supply

@@ -45,8 +45,8 @@ contract sNOTE is
     uint256 public constant REDEEM_WINDOW_SECONDS = 3 days;
     uint32 public constant MAXIMUM_COOL_DOWN_PERIOD_SECONDS = 30 days;
 
-    /// @notice Window for time weighted oracle price
-    uint256 public constant VOTING_POWER_ORACLE_SECONDS = 1 days;
+    /// @notice From IPriceOracle.getLargestSafeQueryWindow
+    uint32 public constant MAX_ORACLE_WINDOW_SIZE = 122400;
 
     /// @notice Number of seconds that need to pass before sNOTE can be redeemed
     uint32 public coolDownTimeInSeconds;
@@ -56,6 +56,9 @@ contract sNOTE is
 
     /// @notice Mapping between sNOTE holders and their cool down status
     mapping(address => uint256) public accountRedeemWindowBegin;
+
+    /// @notice Window for time weighted oracle price
+    uint32 public votingOracleWindowInSeconds;
 
     /// @notice Emitted when a cool down begins
     event CoolDownStarted(
@@ -88,15 +91,18 @@ contract sNOTE is
 
     event ClaimedBAL(uint256 balAmount);
 
+    /// @notice Emitted when voting power oracle window is updated
+    event VotingOracleWindowUpdated(uint256 _votingOracleWindowInSeconds);
+
     /** Errors **/
 
-    error OwnerRequired(address sender);
+    error ManagerRequired(address sender);
 
     error OwnerOrManagerRequired(address sender);
 
     modifier onlyManagerContract() {
         if (TREASURY_MANAGER_CONTRACT != msg.sender)
-            revert OwnerRequired(msg.sender);
+            revert ManagerRequired(msg.sender);
         _;
     }
 
@@ -138,24 +144,6 @@ contract sNOTE is
         BALANCER_TOKEN = ERC20(_balancerMinter.getBalancerToken());
     }
 
-    /// @notice Initializes sNOTE ERC20 metadata and owner
-    function initialize(address _owner, uint32 _coolDownTimeInSeconds)
-        external
-        initializer
-    {
-        string memory _name = "Staked NOTE";
-        string memory _symbol = "sNOTE";
-        __ERC20_init(_name, _symbol);
-        __ERC20Permit_init(_name);
-
-        coolDownTimeInSeconds = _coolDownTimeInSeconds;
-        owner = _owner;
-        NOTE.safeApprove(address(BALANCER_VAULT), type(uint256).max);
-        WETH.safeApprove(address(BALANCER_VAULT), type(uint256).max);
-
-        emit OwnershipTransferred(address(0), _owner);
-    }
-
     /** Governance Methods **/
 
     /// @notice Authorizes the DAO to upgrade this contract
@@ -168,6 +156,16 @@ contract sNOTE is
         require(_coolDownTimeInSeconds <= MAXIMUM_COOL_DOWN_PERIOD_SECONDS);
         coolDownTimeInSeconds = _coolDownTimeInSeconds;
         emit GlobalCoolDownUpdated(_coolDownTimeInSeconds);
+    }
+
+    /// @notice Updates the voting power oracle window
+    function setVotingOracleWindow(uint32 _votingOracleWindowInSeconds)
+        external
+        onlyOwner
+    {
+        require(_votingOracleWindowInSeconds <= MAX_ORACLE_WINDOW_SIZE);
+        votingOracleWindowInSeconds = _votingOracleWindowInSeconds;
+        emit VotingOracleWindowUpdated(_votingOracleWindowInSeconds);
     }
 
     /// @notice Allows the DAO to extract up to 50% of the BPT tokens during a collateral shortfall event
@@ -229,7 +227,9 @@ contract sNOTE is
         // This will stake BPT into the liquidity gauge
         _mint(msg.sender, bptAmount);
 
-        (uint256 wethAmount, uint256 noteAmount) = getTokenClaimForBPT(bptAmount);
+        (uint256 wethAmount, uint256 noteAmount) = getTokenClaimForBPT(
+            bptAmount
+        );
         emit SNoteMinted(msg.sender, wethAmount, noteAmount, bptAmount);
     }
 
@@ -462,16 +462,15 @@ contract sNOTE is
 
     /// @dev Gets the total BPT held across the LIQUIDITY GAUGE and the contract itself
     function _bptHeld() internal view returns (uint256) {
-        return (
-            LIQUIDITY_GAUGE.balanceOf(address(this)) +
-            BALANCER_POOL_TOKEN.balanceOf(address(this))
-        );
+        return (LIQUIDITY_GAUGE.balanceOf(address(this)) +
+            BALANCER_POOL_TOKEN.balanceOf(address(this)));
     }
 
     /** External View Methods **/
     /// @notice Returns the WETH and NOTE claim for an amount of sNOTE
     function getTokenClaim(uint256 sNOTEAmount)
-        public view
+        public
+        view
         returns (uint256 wethBalance, uint256 noteBalance)
     {
         return getTokenClaimForBPT(getPoolTokenShare(sNOTEAmount));
@@ -479,7 +478,8 @@ contract sNOTE is
 
     /// @notice Returns the WETH and NOTE claim for an address
     function tokenClaimOf(address account)
-        public view
+        public
+        view
         returns (uint256 wethBalance, uint256 noteBalance)
     {
         return getTokenClaimForBPT(getPoolTokenShare(balanceOf(account)));
@@ -487,7 +487,8 @@ contract sNOTE is
 
     /// @notice Returns the WETH and NOTE claim for an amount of BPT
     function getTokenClaimForBPT(uint256 bptAmount)
-        public view
+        public
+        view
         returns (uint256 wethBalance, uint256 noteBalance)
     {
         // prettier-ignore
@@ -505,7 +506,6 @@ contract sNOTE is
         wethBalance = (balances[WETH_INDEX] * bptAmount) / bptSupply;
         noteBalance = (noteBal * bptAmount) / bptSupply / 1e10;
     }
-
 
     /// @notice Returns how many Balancer pool tokens an sNOTE token amount has a claim on
     function getPoolTokenShare(uint256 sNOTEAmount)
@@ -532,7 +532,11 @@ contract sNOTE is
 
     /// @notice Returns the voting power of an account without consulting delegation,
     /// used for off chain Snapshot voting.
-    function votingPowerWithoutDelegation(address account) public view returns (uint256) {
+    function votingPowerWithoutDelegation(address account)
+        public
+        view
+        returns (uint256)
+    {
         return getVotingPower(balanceOf(account));
     }
 
@@ -547,14 +551,14 @@ contract sNOTE is
         uint256 bptPrice = BalancerUtils.getTimeWeightedOraclePrice(
             address(BALANCER_POOL_TOKEN),
             IPriceOracle.Variable.BPT_PRICE,
-            VOTING_POWER_ORACLE_SECONDS
+            uint256(votingOracleWindowInSeconds)
         );
-        
+
         // Gets the NOTE token price (in ETH)
         uint256 notePrice = BalancerUtils.getTimeWeightedOraclePrice(
             address(BALANCER_POOL_TOKEN),
             IPriceOracle.Variable.PAIR_PRICE,
-            VOTING_POWER_ORACLE_SECONDS
+            uint256(votingOracleWindowInSeconds)
         );
 
         // Since both bptPrice and notePrice are denominated in ETH, we can use
@@ -607,7 +611,6 @@ contract sNOTE is
     /// @param account account to mint tokens to
     /// @param bptAmount the number of BPT tokens being minted by the account
     function _mint(address account, uint256 bptAmount) internal override {
-
         // Stake BPT
         LIQUIDITY_GAUGE.deposit(bptAmount, address(this), false);
 

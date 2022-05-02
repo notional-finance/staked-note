@@ -8,6 +8,7 @@ from brownie import (
     Contract, 
     interface, 
     sNOTE, 
+    sNOTEInitializer,
     nProxy, 
     EmptyProxy, 
     TreasuryManager, 
@@ -177,6 +178,7 @@ class Environment:
             self.sNOTEProxy = self.load_sNOTE(self.config['sNOTE'])
             # Upgrade sNOTE for staking
             self.upgrade_sNOTE(self.treasuryManager, False)
+        self.sNOTE.setVotingOracleWindow(3600, {"from": self.sNOTE.owner()})
         self.treasuryManager = self.upgradeTreasuryManager()
         self.DAIToken = self.loadERC20Token("DAI")
         self.exchangeV3 = self.loadExchangeV3(self.config['ExchangeV3'])
@@ -253,11 +255,19 @@ class Environment:
         )
 
         if shouldInitialize:
-            initializeCallData = sNOTEImpl.initialize.encode_input(
+            sNOTEInit = sNOTEInitializer.deploy(
+                self.balancerVault.address,
+                self.poolId,
+                0,
+                1,
+                {"from": self.deployer}
+            )
+            initializeCallData = sNOTEInit.initialize.encode_input(
                 self.config['sNOTEConfig']['owner'],
                 self.config['sNOTEConfig']['coolDownSeconds']
             )
-            self.sNOTEProxy.upgradeToAndCall(sNOTEImpl, initializeCallData, {'from': self.deployer})
+            self.sNOTEProxy.upgradeToAndCall(sNOTEInit, initializeCallData, {'from': self.deployer})
+            self.sNOTEProxy.upgradeTo(sNOTEImpl, {"from": self.deployer})
         else:
             stakeAllCalldata = sNOTEImpl.approveAndStakeAll.encode_input()
             self.sNOTEProxy.upgradeToAndCall(sNOTEImpl, stakeAllCalldata, {'from': self.deployer})

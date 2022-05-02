@@ -409,7 +409,7 @@ def test_vebal():
 
     # Test veBAL token claiming
     balBefore = env.bal.balanceOf(env.veBalDelegator.address)
-    env.veBalDelegator.claimTokens([env.bal.address], {"from": env.veBalDelegator.owner()})
+    env.veBalDelegator.claimFeeTokens([env.bal.address], {"from": env.veBalDelegator.owner()})
     balAfter = env.bal.balanceOf(env.veBalDelegator.address)
     assert pytest.approx(balAfter - balBefore, abs=1000) == 408087728526169
 

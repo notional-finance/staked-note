@@ -24,7 +24,7 @@ abstract contract VoteEscrowTokenManager is BoringOwnable {
     event FeeDistributorUpdated(address newFeeDistributor);
     event VaultContractUpdated(address vaultContract);
     event TokenTransferred(uint256 amount);
-    event RewardTokensClaimed(IERC20[] tokens, uint256[] amounts);
+    event FeeTokensClaimed(IERC20[] tokens, uint256[] amounts);
 
     /// @notice Staked NOTE contract
     IStakedNote public immutable sNOTE;
@@ -163,7 +163,7 @@ abstract contract VoteEscrowTokenManager is BoringOwnable {
 
     /// @notice Claims reward tokens from the fee distributor
     /// @param tokens a list of tokens to claim
-    function claimTokens(IERC20[] calldata tokens) external onlyOwner {
+    function claimFeeTokens(IERC20[] calldata tokens) external onlyOwner {
         uint256[] memory balancesBefore = new uint256[](tokens.length);
         for (uint256 i; i < tokens.length; i++) {
             balancesBefore[i] = tokens[i].balanceOf(address(this));
@@ -178,7 +178,7 @@ abstract contract VoteEscrowTokenManager is BoringOwnable {
                 balancesBefore[i];
         }
 
-        emit RewardTokensClaimed(tokens, balancesTransferred);
+        emit FeeTokensClaimed(tokens, balancesTransferred);
     }
 
     /// @notice returns total balance of tokens, vote-escrowed or liquid.

@@ -4,6 +4,7 @@ pragma solidity =0.8.11;
 import "./utils/BoringOwnable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../interfaces/balancer/ILiquidityGaugeController.sol";
+import "../interfaces/balancer/ILiquidityGauge.sol";
 
 /// @title Liquidity gauge voter, used to vote on the NOTE 80/20 liquidity gauge
 /// @author Fei Protocol
@@ -14,6 +15,8 @@ abstract contract LiquidityGaugeVoter is BoringOwnable {
         address indexed newController
     );
     event GaugeVote(address indexed gauge, uint256 amount);
+
+    event GaugeTokensClaimed(IERC20[] tokens, uint256[] amounts);
 
     /// @notice address of the gauge controller used for voting
     address public gaugeController;
@@ -46,5 +49,31 @@ abstract contract LiquidityGaugeVoter is BoringOwnable {
         );
 
         emit GaugeVote(liquidityGauge, weight);
+    }
+
+    /// @notice Claims reward tokens available for a given liquidity gauge
+    /// @param liquidityGauge liquidity gauge address
+    function claimGaugeTokens(address liquidityGauge) external onlyOwner {
+        uint256 count = ILiquidityGauge(liquidityGauge).reward_count();
+        IERC20[] memory tokens = new IERC20[](count);
+        uint256[] memory balancesBefore = new uint256[](count);
+
+        for (uint256 i; i < count; i++) {
+            tokens[i] = IERC20(
+                ILiquidityGauge(liquidityGauge).reward_tokens(i)
+            );
+            balancesBefore[i] = IERC20(tokens[i]).balanceOf(address(this));
+        }
+
+        ILiquidityGauge(liquidityGauge).claim_rewards();
+
+        uint256[] memory balancesTransferred = new uint256[](count);
+        for (uint256 i; i < count; i++) {
+            balancesTransferred[i] =
+                IERC20(tokens[i]).balanceOf(address(this)) -
+                balancesBefore[i];
+        }
+
+        emit GaugeTokensClaimed(tokens, balancesTransferred);
     }
 }

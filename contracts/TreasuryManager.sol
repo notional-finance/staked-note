@@ -34,6 +34,9 @@ contract TreasuryManager is
     address public immutable ASSET_PROXY;
     IExchangeV3 public immutable EXCHANGE;
     uint32 public constant MAXIMUM_COOL_DOWN_PERIOD_SECONDS = 30 days;
+    
+    /// @notice From IPriceOracle.getLargestSafeQueryWindow
+    uint32 public constant MAX_ORACLE_WINDOW_SIZE = 122400;
 
     /// @notice Balancer token indexes
     /// Balancer requires token addresses to be sorted BAL#102
@@ -50,6 +53,9 @@ contract TreasuryManager is
     uint32 public coolDownTimeInSeconds;
     uint32 public lastInvestTimestamp;
 
+    /// @notice Window for time weighted oracle price
+    uint32 public priceOracleWindowInSeconds;
+
     event ManagementTransferred(address prevManager, address newManager);
     event AssetsHarvested(uint16[] currencies, uint256[] amounts);
     event COMPHarvested(address[] ctokens, uint256 amount);
@@ -63,6 +69,9 @@ contract TreasuryManager is
     /// @notice Emitted when cool down time is updated
     event InvestmentCoolDownUpdated(uint256 newCoolDownTimeSeconds);
     event AssetsInvested(uint256 wethAmount, uint256 noteAmount);
+
+    /// @notice Emitted when price oracle window is updated
+    event PriceOracleWindowUpdated(uint256 _priceOracleWindowInSeconds);
 
     /// @dev Restricted methods for the treasury manager
     modifier onlyManager() {
@@ -206,6 +215,16 @@ contract TreasuryManager is
         emit InvestmentCoolDownUpdated(_coolDownTimeInSeconds);
     }
 
+    /// @notice Updates the price oracle window
+    function setPriceOracleWindow(uint32 _priceOracleWindowInSeconds)
+        external
+        onlyOwner
+    {
+        require(_priceOracleWindowInSeconds <= MAX_ORACLE_WINDOW_SIZE);
+        priceOracleWindowInSeconds = _priceOracleWindowInSeconds;
+        emit PriceOracleWindowUpdated(_priceOracleWindowInSeconds);
+    }
+
     /// @notice Allows treasury manager to invest WETH and NOTE into the Balancer pool
     /// @param wethAmount amount of WETH to transfer into the Balancer pool
     /// @param noteAmount amount of NOTE to transfer into the Balancer pool
@@ -233,7 +252,7 @@ contract TreasuryManager is
         uint256 noteOraclePrice = BalancerUtils.getTimeWeightedOraclePrice(
             address(BALANCER_POOL_TOKEN),
             IPriceOracle.Variable.PAIR_PRICE,
-            3600
+            uint256(priceOracleWindowInSeconds)
         );
 
         BALANCER_VAULT.joinPool(

@@ -180,6 +180,7 @@ class Environment:
             self.upgrade_sNOTE(self.treasuryManager, False)
         self.sNOTE.setVotingOracleWindow(3600, {"from": self.sNOTE.owner()})
         self.treasuryManager = self.upgradeTreasuryManager()
+        self.treasuryManager.setPriceOracleWindow(3600, {"from": self.treasuryManager.owner()})
         self.DAIToken = self.loadERC20Token("DAI")
         self.exchangeV3 = self.loadExchangeV3(self.config['ExchangeV3'])
         self.assetProxy = interface.ERC20Proxy(self.config["ExchangeV3"])

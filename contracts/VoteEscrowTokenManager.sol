@@ -22,7 +22,8 @@ abstract contract VoteEscrowTokenManager is BoringOwnable {
     event LiquidityTokenUpdated(address newLiquidityToken);
     event VeTokenUpdated(address newVeToken);
     event FeeDistributorUpdated(address newFeeDistributor);
-    event TokenTransferredToManager(uint256 amount);
+    event VaultContractUpdated(address vaultContract);
+    event TokenTransferred(uint256 amount);
     event RewardTokensClaimed(IERC20[] tokens, uint256[] amounts);
 
     /// @notice Staked NOTE contract
@@ -42,6 +43,9 @@ abstract contract VoteEscrowTokenManager is BoringOwnable {
 
     /// @notice The fee distributor address
     IFeeDistributor public feeDistributor;
+
+    /// @notice The vault contract address
+    address public vaultContract;
 
     /// @notice VoteEscrowTokenManager token Snapshot Delegator PCV Deposit constructor
     /// @param _liquidityToken the token to lock for vote-escrow (BAL/ETH LP Token)
@@ -144,35 +148,36 @@ abstract contract VoteEscrowTokenManager is BoringOwnable {
 
     /// @notice Allows the owner to transfer tokens to the treasury manager
     /// @param token token address
+    /// @param dest destination address
     /// @param amount amount to transfer
-    function transferTokenToManagerContract(address token, uint256 amount)
-        external
-        onlyOwner
-    {
+    function withdrawToken(
+        address token,
+        address dest,
+        uint256 amount
+    ) external onlyOwner {
         if (amount == type(uint256).max)
             amount = IERC20(token).balanceOf(address(this));
-        IERC20(token).safeTransfer(sNOTE.TREASURY_MANAGER_CONTRACT(), amount);
-        emit TokenTransferredToManager(amount);
+        IERC20(token).safeTransfer(dest, amount);
+        emit TokenTransferred(amount);
     }
 
     /// @notice Claims reward tokens from the fee distributor
     /// @param tokens a list of tokens to claim
-    function claimTokens(IERC20[] calldata tokens)
-        external
-        onlyOwner
-    {
+    function claimTokens(IERC20[] calldata tokens) external onlyOwner {
         uint256[] memory balancesBefore = new uint256[](tokens.length);
         for (uint256 i; i < tokens.length; i++) {
             balancesBefore[i] = tokens[i].balanceOf(address(this));
         }
 
         feeDistributor.claimTokens(address(this), tokens);
-        
+
         uint256[] memory balancesTransferred = new uint256[](tokens.length);
         for (uint256 i; i < tokens.length; i++) {
-            balancesTransferred[i] = tokens[i].balanceOf(address(this)) - balancesBefore[i];
+            balancesTransferred[i] =
+                tokens[i].balanceOf(address(this)) -
+                balancesBefore[i];
         }
-        
+
         emit RewardTokensClaimed(tokens, balancesTransferred);
     }
 

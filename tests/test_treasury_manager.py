@@ -20,7 +20,7 @@ def test_trading_DAI_good_price():
     env.treasuryManager.setSlippageLimit(env.dai.address, 0.9e8, {"from": env.deployer})
     env.dai.transfer(env.treasuryManager.address, 10000e18, { "from": testAccounts.DAIWhale })
     env.weth.approve(env.exchangeV3.address, 2 ** 255, { "from": testAccounts.WETHWhale })
-    order = Order(env.assetProxy, env.treasuryManager.address, env.dai.address, 3000e18, env.weth.address, 1e18)
+    order = Order(env.assetProxy, env.treasuryManager.address, env.dai.address, 2700e18, env.weth.address, 1e18)
     DAIBefore = env.dai.balanceOf(env.treasuryManager.address)
     ETHBefore = env.weth.balanceOf(testAccounts.WETHWhale)
     env.exchangeV3.fillOrder(
@@ -31,7 +31,7 @@ def test_trading_DAI_good_price():
     )
     DAIAfter = env.dai.balanceOf(env.treasuryManager.address)
     ETHAfter = env.weth.balanceOf(testAccounts.WETHWhale)
-    assert DAIBefore - DAIAfter == 3000e18
+    assert DAIBefore - DAIAfter == 2700e18
     assert ETHBefore - ETHAfter == 1e18
 
 def test_trading_DAI_very_good_price():
@@ -233,7 +233,7 @@ def test_trading_WBTC_good_price():
     env.treasuryManager.setSlippageLimit(env.wbtc.address, 0.9e8, {"from": env.deployer})
     env.wbtc.transfer(env.treasuryManager.address, 1e8, { "from": testAccounts.WBTCWhale })
     env.weth.approve(env.exchangeV3.address, 2 ** 255, { "from": testAccounts.WETHWhale })
-    order = Order(env.assetProxy, env.treasuryManager.address, env.wbtc.address, 1e8, env.weth.address, 12.3e18)
+    order = Order(env.assetProxy, env.treasuryManager.address, env.wbtc.address, 1e8, env.weth.address, 14.3e18)
     WBTCBefore = env.wbtc.balanceOf(env.treasuryManager.address)
     ETHBefore = env.weth.balanceOf(testAccounts.WETHWhale)
     env.exchangeV3.fillOrder(
@@ -245,7 +245,7 @@ def test_trading_WBTC_good_price():
     WBTCAfter = env.wbtc.balanceOf(env.treasuryManager.address)
     ETHAfter = env.weth.balanceOf(testAccounts.WETHWhale)
     assert WBTCBefore - WBTCAfter == 1e8
-    assert ETHBefore - ETHAfter == 12.3e18
+    assert ETHBefore - ETHAfter == 14.3e18
 
 
 def test_trading_WBTC_bad_price():
@@ -347,6 +347,7 @@ def test_invest_eth():
     env.treasuryManager.setSlippageLimit(env.dai.address, 0.9e8, {"from": env.deployer})
     env.treasuryManager.setNOTEPurchaseLimit(0.9e8, {"from": env.deployer})
     env.weth.transfer(env.treasuryManager.address, 1e18, {"from": testAccounts.WETHWhale})
+    env.weth.approve(env.balancerVault.address, 2 ** 255, {"from": testAccounts.WETHWhale})
     env.note.approve(env.balancerVault.address, 2 ** 255, {"from": testAccounts.WETHWhale})
     # Initialize price oracle
     env.buyNOTE(1e8, testAccounts.WETHWhale)
@@ -354,7 +355,7 @@ def test_invest_eth():
     chain.sleep(3600)
     chain.mine()
     bptBefore = env.liquidityGauge.balanceOf(env.sNOTE.address)
-    assert pytest.approx(bptBefore, abs=1000) == 981770012526898092964803
+    assert pytest.approx(bptBefore, abs=1000) == 1214171233776535080795136
     env.treasuryManager.investWETHAndNOTE(0.1e18, 0, 0, {"from": testAccounts.testManager})
     bptAfter = env.liquidityGauge.balanceOf(env.sNOTE.address)
-    assert pytest.approx(bptAfter, abs=1000) == 981846341102242643366015
+    assert pytest.approx(bptAfter, abs=1000) == 1214253977358427261014080

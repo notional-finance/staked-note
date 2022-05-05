@@ -41,6 +41,7 @@ EnvironmentConfig = {
     "Notional": "0x1344a36a1b56144c3bc62e7757377d288fde0369",
     "ERC20AssetProxy": "0x95E6F48254609A6ee006F7D493c8e5fB97094ceF",
     "LiquidityGauge": "0x40ac67ea5bd1215d99244651cc71a03468bce6c0",
+    "GaugeController": "0xC128468b7Ce63eA702C1f104D55A2566b13D3ABD",
     "BalancerMinter": "0x239e55F427D44C3cc793f49bFB507ebe76638a2b",
     "ExchangeV3": "0x61935cbdd02287b511119ddb11aeb42f1593b7ef",
     "balancerPoolConfig": {
@@ -142,12 +143,13 @@ class TestAccounts:
     def __init__(self) -> None:
         self.DAIWhale = accounts.at("0x6dfaf865a93d3b0b5cfd1b4db192d1505676645b", force=True) # A good source of DAI
         self.cDAIWhale = accounts.at("0x33b890d6574172e93e58528cd99123a88c0756e9", force=True) # A good source of cDAI
-        self.ETHWhale = accounts.at("0xAE527cE8c5B66D8900B6d1E978396615C168e251", force=True) # A good source of ETH
+        self.ETHWhale = accounts.at("0x9acb5CE4878144a74eEeDEda54c675AA59E0D3D2", force=True) # A good source of ETH
         self.cETHWhale = accounts.at("0x1a1cd9c606727a7400bb2da6e4d5c70db5b4cade", force=True) # A good source of cETH
         self.NOTEWhale = accounts.at("0x22341fB5D92D3d801144aA5A925F401A91418A05", force=True)
-        self.WETHWhale = accounts.at("0x6555e1cc97d3cba6eaddebbcd7ca51d75771e0b8", force=True)
+        self.WETHWhale = accounts.at("0x3D71d79C224998E608d03C5Ec9B405E7a38505F0", force=True)
         self.USDCWhale = accounts.at("0x6bb273bf25220d13c9b46c6ed3a5408a3ba9bcc6", force=True)
         self.WBTCWhale = accounts.at("0x92c96306289a7322174d6e091b9e36b14210e4f5", force=True)
+        self.veBALWhale = accounts.at("0xA62315902fAADC69F898cc8B85F86FfD1F6aAeD8", force=True)
         self.testManager = accounts.add('43a6634021d4b1ff7fd350843eebaa7cf547aefbf9503c33af0ec27c83f76827')
 
 class Environment:
@@ -156,6 +158,7 @@ class Environment:
         self.deployer = deployer
         self.balancerVault = self.loadBalancerVault(self.config["BalancerVault"])
         self.pool2TokensFactory = self.loadPool2TokensFactory(self.config["WeightedPool2TokensFactory"])
+        self.gaugeController = interface.ILiquidityGaugeController(self.config["GaugeController"])
         self.note = self.loadNOTE(self.config["NOTE"])
         self.dai = self.loadERC20Token("DAI")
         self.weth = self.load_WETH(self.config["WETH"])
@@ -378,3 +381,4 @@ def create_environment(useFresh = False):
 def main():
     env = create_environment()
     testAccounts = TestAccounts()
+

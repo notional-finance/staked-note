@@ -38,6 +38,9 @@ contract TreasuryManager is
     address public immutable VE_BAL_DELEGATOR;
     uint32 public constant MAXIMUM_COOL_DOWN_PERIOD_SECONDS = 30 days;
 
+    /// @notice From IPriceOracle.getLargestSafeQueryWindow
+    uint32 public constant MAX_ORACLE_WINDOW_SIZE = 122400;
+
     /// @notice Balancer token indexes
     /// Balancer requires token addresses to be sorted BAL#102
     uint16 public immutable NOTE_INDEX;
@@ -52,6 +55,9 @@ contract TreasuryManager is
     /// @notice Number of seconds that need to pass before another investWETHAndNOTE can be called
     uint32 public coolDownTimeInSeconds;
     uint32 public lastInvestTimestamp;
+
+    /// @notice Window for time weighted oracle price
+    uint32 public priceOracleWindowInSeconds;
 
     /// @notice The amount of WETH that can be used to purchase BAL by providing single-sided liquidity
     uint256 public balPurchaseLimit;
@@ -80,6 +86,9 @@ contract TreasuryManager is
         uint256 noteChangeAmount,
         uint256 bptChangeAmount
     );
+
+    /// @notice Emitted when price oracle window is updated
+    event PriceOracleWindowUpdated(uint256 _priceOracleWindowInSeconds);
 
     /// @dev Restricted methods for the treasury manager
     modifier onlyManager() {
@@ -252,6 +261,16 @@ contract TreasuryManager is
         emit InvestmentCoolDownUpdated(_coolDownTimeInSeconds);
     }
 
+    /// @notice Updates the price oracle window
+    function setPriceOracleWindow(uint32 _priceOracleWindowInSeconds)
+        external
+        onlyOwner
+    {
+        require(_priceOracleWindowInSeconds <= MAX_ORACLE_WINDOW_SIZE);
+        priceOracleWindowInSeconds = _priceOracleWindowInSeconds;
+        emit PriceOracleWindowUpdated(_priceOracleWindowInSeconds);
+    }
+
     function delegateBalancerLiquidity(uint256 amount) external ownerOrManager {
         if (amount == type(uint256).max)
             amount = BAL_LIQUIDITY_TOKEN.balanceOf(address(this));
@@ -355,7 +374,7 @@ contract TreasuryManager is
         uint256 noteOraclePrice = BalancerUtils.getTimeWeightedOraclePrice(
             address(BALANCER_POOL_TOKEN),
             IPriceOracle.Variable.PAIR_PRICE,
-            3600
+            uint256(priceOracleWindowInSeconds)
         );
 
         (

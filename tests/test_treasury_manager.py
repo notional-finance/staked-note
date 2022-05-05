@@ -20,7 +20,7 @@ def test_trading_DAI_good_price():
     env.treasuryManager.setSlippageLimit(env.dai.address, 0.9e8, {"from": env.deployer})
     env.dai.transfer(env.treasuryManager.address, 10000e18, { "from": testAccounts.DAIWhale })
     env.weth.approve(env.exchangeV3.address, 2 ** 255, { "from": testAccounts.WETHWhale })
-    order = Order(env.assetProxy, env.treasuryManager.address, env.dai.address, 3000e18, env.weth.address, 1e18)
+    order = Order(env.assetProxy, env.treasuryManager.address, env.dai.address, 2700e18, env.weth.address, 1e18)
     DAIBefore = env.dai.balanceOf(env.treasuryManager.address)
     ETHBefore = env.weth.balanceOf(testAccounts.WETHWhale)
     env.exchangeV3.fillOrder(
@@ -31,7 +31,7 @@ def test_trading_DAI_good_price():
     )
     DAIAfter = env.dai.balanceOf(env.treasuryManager.address)
     ETHAfter = env.weth.balanceOf(testAccounts.WETHWhale)
-    assert DAIBefore - DAIAfter == 3000e18
+    assert DAIBefore - DAIAfter == 2700e18
     assert ETHBefore - ETHAfter == 1e18
 
 def test_trading_DAI_very_good_price():
@@ -233,7 +233,7 @@ def test_trading_WBTC_good_price():
     env.treasuryManager.setSlippageLimit(env.wbtc.address, 0.9e8, {"from": env.deployer})
     env.wbtc.transfer(env.treasuryManager.address, 1e8, { "from": testAccounts.WBTCWhale })
     env.weth.approve(env.exchangeV3.address, 2 ** 255, { "from": testAccounts.WETHWhale })
-    order = Order(env.assetProxy, env.treasuryManager.address, env.wbtc.address, 1e8, env.weth.address, 14e18)
+    order = Order(env.assetProxy, env.treasuryManager.address, env.wbtc.address, 1e8, env.weth.address, 14.3e18)
     WBTCBefore = env.wbtc.balanceOf(env.treasuryManager.address)
     ETHBefore = env.weth.balanceOf(testAccounts.WETHWhale)
     env.exchangeV3.fillOrder(
@@ -245,7 +245,7 @@ def test_trading_WBTC_good_price():
     WBTCAfter = env.wbtc.balanceOf(env.treasuryManager.address)
     ETHAfter = env.weth.balanceOf(testAccounts.WETHWhale)
     assert WBTCBefore - WBTCAfter == 1e8
-    assert ETHBefore - ETHAfter == 14e18
+    assert ETHBefore - ETHAfter == 14.3e18
 
 
 def test_trading_WBTC_bad_price():
@@ -347,6 +347,7 @@ def test_invest_eth():
     env.treasuryManager.setSlippageLimit(env.dai.address, 0.9e8, {"from": env.deployer})
     env.treasuryManager.setNOTEPurchaseLimit(0.9e8, {"from": env.deployer})
     env.weth.transfer(env.treasuryManager.address, 1e18, {"from": testAccounts.WETHWhale})
+    env.weth.approve(env.balancerVault.address, 2 ** 255, {"from": testAccounts.WETHWhale})
     env.note.approve(env.balancerVault.address, 2 ** 255, {"from": testAccounts.WETHWhale})
     # Initialize price oracle
     env.buyNOTE(1e8, testAccounts.WETHWhale)
@@ -354,10 +355,11 @@ def test_invest_eth():
     chain.sleep(3600)
     chain.mine()
     bptBefore = env.liquidityGauge.balanceOf(env.sNOTE.address)
-    assert pytest.approx(bptBefore, abs=1000) == 1107294716505670335394675
+
+    assert pytest.approx(bptBefore, abs=1000) == 1214171233776535080795136
     env.treasuryManager.investWETHAndNOTE(0.1e18, 0, 0, {"from": testAccounts.testManager})
     bptAfter = env.liquidityGauge.balanceOf(env.sNOTE.address)
-    assert pytest.approx(bptAfter, abs=1000) == 1107378060149034396142624
+    assert pytest.approx(bptAfter, abs=1000) == 1214253977358427261014080
 
 def test_vebal():
     testAccounts = TestAccounts()
@@ -370,7 +372,7 @@ def test_vebal():
     # Add liquidity
     assert env.balLiquidityToken.balanceOf(env.treasuryManager.address) == 0
     env.treasuryManager.addBalancerLiquidity(0, 1000e18, 0, {"from": testAccounts.testManager})
-    assert pytest.approx(env.balLiquidityToken.balanceOf(env.treasuryManager.address), abs=1000) == 413106180762199903165
+    assert pytest.approx(env.balLiquidityToken.balanceOf(env.treasuryManager.address), abs=1000) == 413903075600570686781
 
     # Delegate liquidity to VeBalDelegator
     env.treasuryManager.delegateBalancerLiquidity(
@@ -378,7 +380,7 @@ def test_vebal():
         {"from": testAccounts.testManager}
     )
     assert env.balLiquidityToken.balanceOf(env.treasuryManager.address) == 0
-    assert pytest.approx(env.balLiquidityToken.balanceOf(env.veBalDelegator.address), abs=1000) == 413106180762199903165
+    assert pytest.approx(env.balLiquidityToken.balanceOf(env.veBalDelegator.address), abs=1000) == 413903075600570686781
 
     # Whitelist VeBalDelegator to lock
     env.smartWalletChecker.allowlistAddress(env.veBalDelegator.address, {"from": testAccounts.balancerAdmin})
@@ -411,7 +413,7 @@ def test_vebal():
     balBefore = env.bal.balanceOf(env.veBalDelegator.address)
     env.veBalDelegator.claimFeeTokens([env.bal.address], {"from": env.veBalDelegator.owner()})
     balAfter = env.bal.balanceOf(env.veBalDelegator.address)
-    assert pytest.approx(balAfter - balBefore, abs=1000) == 408087728526169
+    assert pytest.approx(balAfter - balBefore, abs=1000) == 412183160626750
 
     # Unlock VeBAL
     env.veBalDelegator.exitLock({"from": env.veBalDelegator.owner()})
@@ -419,10 +421,10 @@ def test_vebal():
     # Withdraw liquidity from VeBalDelegator
     env.veBalDelegator.withdrawToken(env.balLiquidityToken.address, env.treasuryManager.address, 2**256 - 1, {"from": env.sNOTE.owner()})
     assert env.balLiquidityToken.balanceOf(env.veBalDelegator.address) == 0
-    assert pytest.approx(env.balLiquidityToken.balanceOf(env.treasuryManager.address), abs=1000) == 413106180762199903165
+    assert pytest.approx(env.balLiquidityToken.balanceOf(env.treasuryManager.address), abs=1000) == 413903075600570686781
 
     # Remove liquidity
     env.treasuryManager.removeBalancerLiquidity(0, 0, 2**256 - 1, {"from": testAccounts.testManager})
     assert env.balLiquidityToken.balanceOf(env.treasuryManager.address) == 0
-    assert pytest.approx(env.bal.balanceOf(env.treasuryManager.address), abs=1000) == 999798412496769609290880
-    assert pytest.approx(env.weth.balanceOf(env.treasuryManager.address), abs=1000) == 967956203471219708
+    assert pytest.approx(env.bal.balanceOf(env.treasuryManager.address), abs=1000) == 999798411799357549581160
+    assert pytest.approx(env.weth.balanceOf(env.treasuryManager.address), abs=1000) == 979171010408892030

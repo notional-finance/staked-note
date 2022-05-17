@@ -198,6 +198,7 @@ class Environment:
             EnvironmentConfig["BALETH"],
             EnvironmentConfig["VeToken"],
             EnvironmentConfig["FeeDistributor"],
+            EnvironmentConfig["BalancerMinter"],
             EnvironmentConfig["GaugeController"],
             self.sNOTE.address,
             EnvironmentConfig["DelegateRegistry"],
@@ -211,7 +212,7 @@ class Environment:
         self.treasuryManager.setPriceOracleWindow(3600, {"from": self.treasuryManager.owner()})
         self.DAIToken = self.loadERC20Token("DAI")
         self.exchangeV3 = self.loadExchangeV3(self.config['ExchangeV3'])
-        self.assetProxy = interface.ERC20Proxy(self.config["ExchangeV3"])
+        self.assetProxy = interface.ERC20Proxy(self.config["ERC20AssetProxy"])
         self.COMPOracle = self.deployCOMPOracle()
 
     def loadExchangeV3(self, address):
@@ -352,7 +353,6 @@ class Environment:
             self.poolId,
             EnvironmentConfig["BalEthPoolId"],
             self.veBalDelegator,
-            EnvironmentConfig["ERC20AssetProxy"],
             EnvironmentConfig["ExchangeV3"],
             { "from": self.deployer }
         )

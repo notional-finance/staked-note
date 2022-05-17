@@ -11,6 +11,7 @@ import "../interfaces/balancer/ILiquidityGaugeController.sol";
 import "../interfaces/balancer/IFeeDistributor.sol";
 import "../interfaces/balancer/IVeToken.sol";
 import "../interfaces/notional/IStakedNote.sol";
+import "../interfaces/balancer/IBalancerMinter.sol";
 
 /// @title 80-BAL-20-WETH BPT PCV Deposit
 /// @author Fei Protocol
@@ -27,16 +28,16 @@ contract VeBalDelegator is
         ERC20 _liquidityToken,
         IVeToken _veBal,
         IFeeDistributor _feeDistributor,
+        IBalancerMinter _balancerMinter,
         address _gaugeController,
         IStakedNote _sNOTE,
         IDelegateRegistry _delegateRegistry,
         bytes32 _spaceId,
         address _initialDelegate
-        
     )
         SnapshotDelegator(_delegateRegistry, spaceId, _initialDelegate)
         VoteEscrowTokenManager(_liquidityToken, _veBal, _feeDistributor, _sNOTE, YEAR)
-        LiquidityGaugeVoter(gaugeController)
+        LiquidityGaugeVoter(_balancerMinter, _gaugeController)
         GovernorVoter()
     {
         owner = msg.sender;

@@ -23,7 +23,6 @@ abstract contract VoteEscrowTokenManager is BoringOwnable {
     event VeTokenUpdated(address newVeToken);
     event FeeDistributorUpdated(address newFeeDistributor);
     event VaultContractUpdated(address vaultContract);
-    event TokenTransferred(uint256 amount);
     event FeeTokensClaimed(IERC20[] tokens, uint256[] amounts);
 
     /// @notice Staked NOTE contract
@@ -144,21 +143,6 @@ abstract contract VoteEscrowTokenManager is BoringOwnable {
         veToken.withdraw();
 
         emit Unlock(liquidityToken.balanceOf(address(this)));
-    }
-
-    /// @notice Allows the owner to transfer tokens to the treasury manager
-    /// @param token token address
-    /// @param dest destination address
-    /// @param amount amount to transfer
-    function withdrawToken(
-        address token,
-        address dest,
-        uint256 amount
-    ) external onlyOwner {
-        if (amount == type(uint256).max)
-            amount = IERC20(token).balanceOf(address(this));
-        IERC20(token).safeTransfer(dest, amount);
-        emit TokenTransferred(amount);
     }
 
     /// @notice Claims reward tokens from the fee distributor

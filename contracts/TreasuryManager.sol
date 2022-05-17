@@ -30,7 +30,6 @@ contract TreasuryManager is
     IERC20 public immutable BALANCER_POOL_TOKEN;
     IStakedNote public immutable sNOTE;
     bytes32 public immutable NOTE_ETH_POOL_ID;
-    address public immutable ASSET_PROXY;
     IExchangeV3 public immutable EXCHANGE;
     bytes32 public immutable BAL_ETH_POOL_ID;
     IERC20 public immutable BAL_LIQUIDITY_TOKEN;
@@ -111,7 +110,6 @@ contract TreasuryManager is
         bytes32 _noteETHPoolId,
         bytes32 _balETHPoolId,
         address _veBalDelegator,
-        address _assetProxy,
         IExchangeV3 _exchange
     ) EIP1271Wallet(WETH9(_sNOTE.WETH())) initializer {
         NOTIONAL = NotionalTreasuryAction(_notional);
@@ -139,7 +137,6 @@ contract TreasuryManager is
             BAL_INDEX
         );
 
-        ASSET_PROXY = _assetProxy;
         EXCHANGE = _exchange;
     }
 
@@ -155,9 +152,16 @@ contract TreasuryManager is
         emit ManagementTransferred(address(0), _manager);
     }
 
-    function approveToken(address token, uint256 amount) external onlyOwner {
-        IERC20(token).safeApprove(ASSET_PROXY, 0);
-        IERC20(token).safeApprove(ASSET_PROXY, amount);
+    function approveTokens(
+        address[] calldata tokens,
+        uint256[] calldata amounts,
+        address spender
+    ) external onlyOwner {
+        require(tokens.length == amounts.length);
+        for (uint256 i; i < tokens.length; i++) {
+            IERC20(tokens[i]).safeApprove(spender, 0);
+            IERC20(tokens[i]).safeApprove(spender, amounts[i]);
+        }
     }
 
     function approveBalancer() external onlyOwner {
@@ -269,12 +273,6 @@ contract TreasuryManager is
         require(_priceOracleWindowInSeconds <= MAX_ORACLE_WINDOW_SIZE);
         priceOracleWindowInSeconds = _priceOracleWindowInSeconds;
         emit PriceOracleWindowUpdated(_priceOracleWindowInSeconds);
-    }
-
-    function delegateBalancerLiquidity(uint256 amount) external ownerOrManager {
-        if (amount == type(uint256).max)
-            amount = BAL_LIQUIDITY_TOKEN.balanceOf(address(this));
-        BAL_LIQUIDITY_TOKEN.safeTransfer(VE_BAL_DELEGATOR, amount);
     }
 
     function addBalancerLiquidity(

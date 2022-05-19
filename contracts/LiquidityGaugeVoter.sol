@@ -152,7 +152,7 @@ abstract contract LiquidityGaugeVoter is BoringOwnable {
     /// @param tokens a list of tokens to claim
     function claimFeeTokens(IERC20[] calldata tokens)
         external
-        onlyManagerContract
+        onlyOwner
     {
         uint256[] memory balancesBefore = new uint256[](tokens.length);
         for (uint256 i; i < tokens.length; i++) {

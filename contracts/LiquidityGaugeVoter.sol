@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../interfaces/balancer/ILiquidityGaugeController.sol";
 import "../interfaces/balancer/ILiquidityGauge.sol";
 import "../interfaces/balancer/IBalancerMinter.sol";
+import "../interfaces/balancer/IFeeDistributor.sol";
 
 /// @title Liquidity gauge voter, used to vote on the NOTE 80/20 liquidity gauge
 /// @author Fei Protocol
@@ -21,26 +22,49 @@ abstract contract LiquidityGaugeVoter is BoringOwnable {
         address indexed oldController,
         address indexed newController
     );
+    event ManagerContractChanged(
+        address indexed oldController,
+        address indexed newController
+    );
     event GaugeVote(address indexed gauge, uint256 amount);
     event GaugeTokensClaimed(IERC20[] tokens, uint256[] amounts);
     event BALTokenClaimed(uint256 amount);
     event TokenWithdrawal(address token, address to, uint256 amount);
     event TokenDeposit(address token, address from, uint256 amount);
+    event FeeDistributorUpdated(address newFeeDistributor);
+    event FeeTokensClaimed(IERC20[] tokens, uint256[] amounts);
 
     /// @notice address of the gauge controller used for voting
     address public gaugeController;
 
+    /// @notice The fee distributor address
+    IFeeDistributor public feeDistributor;
+
+    /// @notice BPT token balances
     mapping(address => mapping(address => uint256)) private tokenBalances;
 
-    constructor(IBalancerMinter _balancerMinter, address _gaugeController) {
+    /// @notice manager contract used to manage BPT token deposits
+    address public managerContract;
+
+    modifier onlyManagerContract() {
+        require(msg.sender == managerContract, "manager contract required");
+        _;
+    }
+
+    constructor(
+        IBalancerMinter _balancerMinter,
+        IFeeDistributor _feeDistributor,
+        address _gaugeController
+    ) {
         BALANCER_MINTER = _balancerMinter;
         BAL_TOKEN = IERC20(_balancerMinter.getBalancerToken());
+        feeDistributor = _feeDistributor;
         gaugeController = _gaugeController;
     }
 
     /// @notice Set the gauge controller used for gauge weight voting
     /// @param _gaugeController the gauge controller address
-    function setGaugeController(address _gaugeController) public onlyOwner {
+    function setGaugeController(address _gaugeController) external onlyOwner {
         require(gaugeController != _gaugeController, "Same gauge controller");
 
         address oldController = gaugeController;
@@ -49,11 +73,34 @@ abstract contract LiquidityGaugeVoter is BoringOwnable {
         emit GaugeControllerChanged(oldController, gaugeController);
     }
 
+    /// @notice Set the manager contract used for managing LP token deposits
+    /// @param _managerContract new manager contract
+    function setManagerContract(address _managerContract) external onlyOwner {
+        require(managerContract != _managerContract, "Same manager");
+
+        address oldManager = managerContract;
+        managerContract = _managerContract;
+
+        emit ManagerContractChanged(oldManager, managerContract);
+    }
+
+    /// @notice Set the fee distributor address
+    /// @param newFeeDistributor new VeToken address
+    function setFeeDistributor(address newFeeDistributor) external onlyOwner {
+        require(
+            address(feeDistributor) != newFeeDistributor,
+            "Same FeeDistributor"
+        );
+
+        feeDistributor = IFeeDistributor(newFeeDistributor);
+        emit FeeDistributorUpdated(newFeeDistributor);
+    }
+
     /// @notice Vote for a gauge's weight
     /// @param liquidityGauge liquidity gauge address
     /// @param weight gauge weight in BPS, 10000 BPS = 100%
     function voteForGaugeWeight(address liquidityGauge, uint256 weight)
-        public
+        external
         onlyOwner
     {
         ILiquidityGaugeController(gaugeController).vote_for_gauge_weights(
@@ -64,7 +111,7 @@ abstract contract LiquidityGaugeVoter is BoringOwnable {
         emit GaugeVote(liquidityGauge, weight);
     }
 
-    function claimBAL(address liquidityGauge) external onlyOwner {
+    function claimBAL(address liquidityGauge) external onlyManagerContract {
         uint256 balBefore = BAL_TOKEN.balanceOf(address(this));
         BALANCER_MINTER.mint(address(liquidityGauge));
         uint256 balAfter = BAL_TOKEN.balanceOf(address(this));
@@ -74,7 +121,10 @@ abstract contract LiquidityGaugeVoter is BoringOwnable {
 
     /// @notice Claims reward tokens available for a given liquidity gauge
     /// @param liquidityGauge liquidity gauge address
-    function claimGaugeTokens(address liquidityGauge) external onlyOwner {
+    function claimGaugeTokens(address liquidityGauge)
+        external
+        onlyManagerContract
+    {
         uint256 count = ILiquidityGauge(liquidityGauge).reward_count();
         IERC20[] memory tokens = new IERC20[](count);
         uint256[] memory balancesBefore = new uint256[](count);
@@ -98,6 +148,29 @@ abstract contract LiquidityGaugeVoter is BoringOwnable {
         emit GaugeTokensClaimed(tokens, balancesTransferred);
     }
 
+    /// @notice Claims reward tokens from the fee distributor
+    /// @param tokens a list of tokens to claim
+    function claimFeeTokens(IERC20[] calldata tokens)
+        external
+        onlyManagerContract
+    {
+        uint256[] memory balancesBefore = new uint256[](tokens.length);
+        for (uint256 i; i < tokens.length; i++) {
+            balancesBefore[i] = tokens[i].balanceOf(address(this));
+        }
+
+        feeDistributor.claimTokens(address(this), tokens);
+
+        uint256[] memory balancesTransferred = new uint256[](tokens.length);
+        for (uint256 i; i < tokens.length; i++) {
+            balancesTransferred[i] =
+                tokens[i].balanceOf(address(this)) -
+                balancesBefore[i];
+        }
+
+        emit FeeTokensClaimed(tokens, balancesTransferred);
+    }
+
     /// @notice Returns the token balance
     /// @param token token address
     /// @param from source address
@@ -118,7 +191,7 @@ abstract contract LiquidityGaugeVoter is BoringOwnable {
         address token,
         address to,
         uint256 amount
-    ) external onlyOwner {
+    ) external onlyManagerContract {
         if (amount == type(uint256).max) amount = tokenBalances[to][token];
 
         require(amount <= tokenBalances[to][token]);
@@ -138,7 +211,7 @@ abstract contract LiquidityGaugeVoter is BoringOwnable {
         address token,
         address from,
         uint256 amount
-    ) external onlyOwner {
+    ) external onlyManagerContract {
         uint256 balBefore = IERC20(token).balanceOf(address(this));
         if (amount > 0) {
             IERC20(token).safeTransferFrom(from, address(this), amount);

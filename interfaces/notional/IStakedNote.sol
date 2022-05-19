@@ -7,4 +7,5 @@ interface IStakedNote {
     function TREASURY_MANAGER_CONTRACT() external view returns (address);
     function NOTE() external view returns (address);
     function WETH() external view returns (address);
+    function claimBAL() external;
 }

@@ -258,6 +258,10 @@ contract TreasuryManager is
         emit COMPHarvested(ctokens, amountTransferred);
     }
 
+    function claimBAL() external onlyManager {
+        sNOTE.claimBAL();
+    }
+
     /// @notice Updates the required cooldown time to invest
     function setCoolDownTime(uint32 _coolDownTimeInSeconds) external onlyOwner {
         require(_coolDownTimeInSeconds <= MAXIMUM_COOL_DOWN_PERIOD_SECONDS);

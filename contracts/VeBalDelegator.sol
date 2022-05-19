@@ -36,8 +36,8 @@ contract VeBalDelegator is
         address _initialDelegate
     )
         SnapshotDelegator(_delegateRegistry, spaceId, _initialDelegate)
-        VoteEscrowTokenManager(_liquidityToken, _veBal, _feeDistributor, _sNOTE, YEAR)
-        LiquidityGaugeVoter(_balancerMinter, _gaugeController)
+        VoteEscrowTokenManager(_liquidityToken, _veBal, _sNOTE, YEAR)
+        LiquidityGaugeVoter(_balancerMinter, _feeDistributor, _gaugeController)
         GovernorVoter()
     {
         owner = msg.sender;

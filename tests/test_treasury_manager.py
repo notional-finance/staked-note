@@ -1,4 +1,3 @@
-
 import pytest
 import brownie
 from brownie.network.state import Chain
@@ -368,6 +367,7 @@ def test_vebal():
     env.treasuryManager.approveTokens([env.dai.address], [2 ** 255], env.assetProxy.address, { "from": env.deployer })
     env.treasuryManager.approveTokens([env.balLiquidityToken.address], [2 ** 255], env.veBalDelegator.address, { "from": env.deployer })
     env.treasuryManager.approveBalancer({"from": env.deployer})
+    env.veBalDelegator.setManagerContract(env.veBalDelegator.owner(), {"from": env.veBalDelegator.owner()})
     env.bal.transfer(env.treasuryManager.address, 1000000e18, {"from": testAccounts.BALWhale})
 
     # Add liquidity

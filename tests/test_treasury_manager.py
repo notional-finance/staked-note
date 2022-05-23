@@ -4,6 +4,7 @@ from brownie.network.state import Chain
 from scripts.environment import create_environment, TestAccounts, Order
 
 chain = Chain()
+
 @pytest.fixture(autouse=True)
 def run_around_tests():
     chain.snapshot()
@@ -367,7 +368,7 @@ def test_vebal():
     env.treasuryManager.approveTokens([env.dai.address], [2 ** 255], env.assetProxy.address, { "from": env.deployer })
     env.treasuryManager.approveTokens([env.balLiquidityToken.address], [2 ** 255], env.veBalDelegator.address, { "from": env.deployer })
     env.treasuryManager.approveBalancer({"from": env.deployer})
-    env.veBalDelegator.setManagerContract(env.veBalDelegator.owner(), {"from": env.veBalDelegator.owner()})
+    env.veBalDelegator.setManagerContract(testAccounts.DAIWhale.address, {"from": env.veBalDelegator.owner()})
     env.bal.transfer(env.treasuryManager.address, 1000000e18, {"from": testAccounts.BALWhale})
 
     # Add liquidity
@@ -380,7 +381,7 @@ def test_vebal():
         env.balLiquidityToken.address,
         env.treasuryManager.address,
         env.balLiquidityToken.balanceOf(env.treasuryManager.address), 
-        {"from": env.veBalDelegator.owner()}
+        {"from": env.veBalDelegator.managerContract()}
     )
     assert env.balLiquidityToken.balanceOf(env.treasuryManager.address) == 0
     assert pytest.approx(env.balLiquidityToken.balanceOf(env.veBalDelegator.address), abs=1000) == 413903075600570686781
@@ -414,6 +415,9 @@ def test_vebal():
 
     # Test veBAL token claiming
     balBefore = env.bal.balanceOf(env.veBalDelegator.address)
+    with brownie.reverts():
+        env.veBalDelegator.claimFeeTokens([env.bal.address], {"from": env.veBalDelegator.managerContract()})
+
     env.veBalDelegator.claimFeeTokens([env.bal.address], {"from": env.veBalDelegator.owner()})
     balAfter = env.bal.balanceOf(env.veBalDelegator.address)
     assert pytest.approx(balAfter - balBefore, abs=1000) == 412183160626750
@@ -422,7 +426,12 @@ def test_vebal():
     env.veBalDelegator.exitLock({"from": env.veBalDelegator.owner()})
 
     # Withdraw liquidity from VeBalDelegator
-    env.veBalDelegator.withdrawToken(env.balLiquidityToken.address, env.treasuryManager.address, 2**256 - 1, {"from": env.sNOTE.owner()})
+    env.veBalDelegator.withdrawToken(
+        env.balLiquidityToken.address, 
+        env.treasuryManager.address, 
+        2**256 - 1, 
+        {"from": env.veBalDelegator.managerContract()}
+    )
     assert env.balLiquidityToken.balanceOf(env.veBalDelegator.address) == 0
     assert pytest.approx(env.balLiquidityToken.balanceOf(env.treasuryManager.address), abs=1000) == 413903075600570686781
 

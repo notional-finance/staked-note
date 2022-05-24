@@ -111,6 +111,12 @@ abstract contract LiquidityGaugeVoter is BoringOwnable {
         emit GaugeVote(liquidityGauge, weight);
     }
 
+    /// @notice Apply veBAL boost to the specified liquidity gauge
+    /// @param liquidityGauge liquidity gauge address
+    function checkpointGauge(address liquidityGauge) external onlyManagerContract {
+        require(ILiquidityGauge(liquidityGauge).user_checkpoint(address(this)) == true);
+    }
+
     function claimBAL(address liquidityGauge) external onlyManagerContract {
         uint256 balBefore = BAL_TOKEN.balanceOf(address(this));
         BALANCER_MINTER.mint(address(liquidityGauge));

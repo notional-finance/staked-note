@@ -22,4 +22,6 @@ interface ILiquidityGauge is IERC20 {
     function reward_tokens(uint256 i) external view returns (address token);
 
     function reward_count() external view returns (uint256 nTokens);
+
+    function user_checkpoint(address addr) external returns (bool);
 }

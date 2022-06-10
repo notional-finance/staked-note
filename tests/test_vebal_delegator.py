@@ -45,17 +45,38 @@ def test_single_depositor():
     assert lidoToken.balanceOf(env.veBalDelegator.address) == 0
 
     with brownie.reverts():
-        env.veBalDelegator.claimGaugeTokens(wstGaugeToken.address, {"from": env.veBalDelegator.owner()})
+        env.veBalDelegator.claimGaugeTokens(
+            wstGaugeToken.address, 
+            testAccounts.USDCWhale.address,
+            {"from": env.veBalDelegator.owner()}
+        )
 
-    env.veBalDelegator.claimGaugeTokens(wstGaugeToken.address, {"from": env.veBalDelegator.managerContract()})
-    assert lidoToken.balanceOf(env.veBalDelegator.address) >= 678963580280555990
+    tx = env.veBalDelegator.claimGaugeTokens(
+        wstGaugeToken.address, 
+        testAccounts.USDCWhale.address, 
+        {"from": env.veBalDelegator.managerContract()}
+    )
+    assert tx.return_value[0][0] == lidoToken.address
+    assert tx.return_value[1][0] >= 678963580280555990
+    assert lidoToken.balanceOf(env.veBalDelegator.address) == 0
+    assert lidoToken.balanceOf(testAccounts.USDCWhale.address) >= 678963580280555990
 
     with brownie.reverts():
-        env.veBalDelegator.claimBAL(wstGaugeToken.address, {"from": env.veBalDelegator.owner()})
+        env.veBalDelegator.claimBAL(
+            wstGaugeToken.address,
+            testAccounts.USDCWhale.address,
+            {"from": env.veBalDelegator.owner()}
+        )
 
     assert env.bal.balanceOf(env.veBalDelegator.address) == 0
-    env.veBalDelegator.claimBAL(wstGaugeToken.address, {"from": env.veBalDelegator.managerContract()})
-    assert env.bal.balanceOf(env.veBalDelegator.address) >= 1117624619526308444
+    tx = env.veBalDelegator.claimBAL(
+        wstGaugeToken.address, 
+        testAccounts.USDCWhale.address, 
+        {"from": env.veBalDelegator.managerContract()}
+    )
+    assert tx.return_value >= 1117624619526308444
+    assert env.bal.balanceOf(env.veBalDelegator.address) == 0
+    assert env.bal.balanceOf(testAccounts.USDCWhale.address) >= 1117624619526308444
 
     # Withdraw LP token
     env.veBalDelegator.withdrawToken(wstGaugeToken.address, gaugeWhale.address, 1e18, {"from": env.veBalDelegator.managerContract()})
@@ -103,17 +124,38 @@ def test_multiple_depositors():
     assert lidoToken.balanceOf(env.veBalDelegator.address) == 0
 
     with brownie.reverts():
-        env.veBalDelegator.claimGaugeTokens(wstGaugeToken.address, {"from": env.veBalDelegator.owner()})
+        env.veBalDelegator.claimGaugeTokens(
+            wstGaugeToken.address, 
+            testAccounts.USDCWhale.address, 
+            {"from": env.veBalDelegator.owner()}
+        )
 
-    env.veBalDelegator.claimGaugeTokens(wstGaugeToken.address, {"from": env.veBalDelegator.managerContract()})
-    assert lidoToken.balanceOf(env.veBalDelegator.address) >= 49052628368936787766
+    tx = env.veBalDelegator.claimGaugeTokens(
+        wstGaugeToken.address, 
+        testAccounts.USDCWhale.address, 
+        {"from": env.veBalDelegator.managerContract()}
+    )
+    assert tx.return_value[0][0] == lidoToken.address
+    assert tx.return_value[1][0] >= 49052628368936787766
+    assert lidoToken.balanceOf(env.veBalDelegator.address) == 0
+    assert lidoToken.balanceOf(testAccounts.USDCWhale.address) >= 49052628368936787766
 
     with brownie.reverts():
-        env.veBalDelegator.claimBAL(wstGaugeToken.address, {"from": env.veBalDelegator.owner()})
+        env.veBalDelegator.claimBAL(
+            wstGaugeToken.address, 
+            testAccounts.USDCWhale.address, 
+            {"from": env.veBalDelegator.owner()}
+        )
 
     assert env.bal.balanceOf(env.veBalDelegator.address) == 0
-    env.veBalDelegator.claimBAL(wstGaugeToken.address, {"from": env.veBalDelegator.managerContract()})
-    assert env.bal.balanceOf(env.veBalDelegator.address) >= 80578702484131086358
+    tx = env.veBalDelegator.claimBAL(
+        wstGaugeToken.address, 
+        testAccounts.USDCWhale.address, 
+        {"from": env.veBalDelegator.managerContract()}
+    )
+    assert tx.return_value >= 80578702484131086358
+    assert env.bal.balanceOf(env.veBalDelegator.address) == 0
+    assert env.bal.balanceOf(testAccounts.USDCWhale.address) >= 80578702484131086358
 
     # Withdraw LP token
     with brownie.reverts():

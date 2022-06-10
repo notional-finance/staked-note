@@ -27,7 +27,7 @@ abstract contract LiquidityGaugeVoter is BoringOwnable {
         address indexed newController
     );
     event GaugeVote(address indexed gauge, uint256 amount);
-    event GaugeTokensClaimed(IERC20[] tokens, uint256[] amounts);
+    event GaugeTokensClaimed(address[] tokens, uint256[] amounts);
     event BALTokenClaimed(uint256 amount);
     event TokenWithdrawal(address token, address to, uint256 amount);
     event TokenDeposit(address token, address from, uint256 amount);
@@ -113,42 +113,53 @@ abstract contract LiquidityGaugeVoter is BoringOwnable {
 
     /// @notice Apply veBAL boost to the specified liquidity gauge
     /// @param liquidityGauge liquidity gauge address
-    function checkpointGauge(address liquidityGauge) external onlyManagerContract {
-        require(ILiquidityGauge(liquidityGauge).user_checkpoint(address(this)) == true);
+    function checkpointGauge(address liquidityGauge)
+        external
+        onlyManagerContract
+    {
+        require(
+            ILiquidityGauge(liquidityGauge).user_checkpoint(address(this)) ==
+                true
+        );
     }
 
-    function claimBAL(address liquidityGauge) external onlyManagerContract {
+    function claimBAL(address liquidityGauge, address to)
+        external
+        onlyManagerContract
+        returns (uint256 claimAmount)
+    {
         uint256 balBefore = BAL_TOKEN.balanceOf(address(this));
         BALANCER_MINTER.mint(address(liquidityGauge));
         uint256 balAfter = BAL_TOKEN.balanceOf(address(this));
-        uint256 claimAmount = balAfter - balBefore;
+        claimAmount = balAfter - balBefore;
+        BAL_TOKEN.transfer(to, claimAmount);
         emit BALTokenClaimed(claimAmount);
     }
 
     /// @notice Claims reward tokens available for a given liquidity gauge
     /// @param liquidityGauge liquidity gauge address
-    function claimGaugeTokens(address liquidityGauge)
+    function claimGaugeTokens(address liquidityGauge, address to)
         external
         onlyManagerContract
+        returns (address[] memory tokens, uint256[] memory balancesTransferred)
     {
         uint256 count = ILiquidityGauge(liquidityGauge).reward_count();
-        IERC20[] memory tokens = new IERC20[](count);
+        tokens = new address[](count);
         uint256[] memory balancesBefore = new uint256[](count);
 
         for (uint256 i; i < count; i++) {
-            tokens[i] = IERC20(
-                ILiquidityGauge(liquidityGauge).reward_tokens(i)
-            );
+            tokens[i] = ILiquidityGauge(liquidityGauge).reward_tokens(i);
             balancesBefore[i] = IERC20(tokens[i]).balanceOf(address(this));
         }
 
         ILiquidityGauge(liquidityGauge).claim_rewards();
 
-        uint256[] memory balancesTransferred = new uint256[](count);
+        balancesTransferred = new uint256[](count);
         for (uint256 i; i < count; i++) {
             balancesTransferred[i] =
                 IERC20(tokens[i]).balanceOf(address(this)) -
                 balancesBefore[i];
+            IERC20(tokens[i]).transfer(to, balancesTransferred[i]);
         }
 
         emit GaugeTokensClaimed(tokens, balancesTransferred);
@@ -159,6 +170,7 @@ abstract contract LiquidityGaugeVoter is BoringOwnable {
     function claimFeeTokens(IERC20[] calldata tokens)
         external
         onlyOwner
+        returns (uint256[] memory balancesTransferred)
     {
         uint256[] memory balancesBefore = new uint256[](tokens.length);
         for (uint256 i; i < tokens.length; i++) {
@@ -167,7 +179,7 @@ abstract contract LiquidityGaugeVoter is BoringOwnable {
 
         feeDistributor.claimTokens(address(this), tokens);
 
-        uint256[] memory balancesTransferred = new uint256[](tokens.length);
+        balancesTransferred = new uint256[](tokens.length);
         for (uint256 i; i < tokens.length; i++) {
             balancesTransferred[i] =
                 tokens[i].balanceOf(address(this)) -

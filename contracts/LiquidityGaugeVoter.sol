@@ -132,7 +132,7 @@ abstract contract LiquidityGaugeVoter is BoringOwnable {
         BALANCER_MINTER.mint(address(liquidityGauge));
         uint256 balAfter = BAL_TOKEN.balanceOf(address(this));
         claimAmount = balAfter - balBefore;
-        BAL_TOKEN.transfer(to, claimAmount);
+        BAL_TOKEN.safeTransfer(to, claimAmount);
         emit BALTokenClaimed(claimAmount);
     }
 
@@ -159,7 +159,7 @@ abstract contract LiquidityGaugeVoter is BoringOwnable {
             balancesTransferred[i] =
                 IERC20(tokens[i]).balanceOf(address(this)) -
                 balancesBefore[i];
-            IERC20(tokens[i]).transfer(to, balancesTransferred[i]);
+            IERC20(tokens[i]).safeTransfer(to, balancesTransferred[i]);
         }
 
         emit GaugeTokensClaimed(tokens, balancesTransferred);

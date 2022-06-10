@@ -75,7 +75,7 @@ def test_extract_tokens_for_shortfall():
 
     assert wethAfter - wethBefore == poolWethBefore - poolWethAfter
     assert pytest.approx(poolWethAfter / poolWethBefore, rel=1e2) == 0.70
-    assert noteAfter - noteBefore + noteFee  == poolNoteBefore - poolNoteAfter
+    assert noteAfter - noteBefore + noteFee == poolNoteBefore - poolNoteAfter
     assert pytest.approx(poolNoteAfter / poolNoteBefore, rel=1e2) == 0.70
 
     with brownie.reverts("Shortfall Cooldown"):
@@ -592,7 +592,7 @@ def testClaimBAL():
     env.gaugeController.vote_for_gauge_weights(env.liquidityGauge.address, 10000, {"from": testAccounts.veBALWhale})
     chain.sleep(10 * 24 * 3600)
     chain.mine()
-    txn = env.sNOTE.claimBAL({"from": env.treasuryManager})
+    txn = env.treasuryManager.claimBAL({"from": env.treasuryManager.manager()})
     balClaimed = env.bal.balanceOf(env.treasuryManager)
     assert balClaimed > 110000000000000000000
     assert txn.events["ClaimedBAL"]["balAmount"] == balClaimed

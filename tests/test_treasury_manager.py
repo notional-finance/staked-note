@@ -1,10 +1,10 @@
-
 import pytest
 import brownie
 from brownie.network.state import Chain
 from scripts.environment import create_environment, TestAccounts, Order
 
 chain = Chain()
+
 @pytest.fixture(autouse=True)
 def run_around_tests():
     chain.snapshot()
@@ -15,7 +15,7 @@ def test_trading_DAI_good_price():
     testAccounts = TestAccounts()
     env = create_environment()
     env.treasuryManager.setManager(testAccounts.testManager, { "from": env.deployer })
-    env.treasuryManager.approveToken(env.dai.address, 2 ** 255, { "from": env.deployer })
+    env.treasuryManager.approveTokens([env.dai.address], [2 ** 255], env.assetProxy.address, { "from": env.deployer })
     env.treasuryManager.setPriceOracle(env.dai.address, '0x6085b0a8f4c7ffa2e8ca578037792d6535d1e29b', {"from": env.deployer})
     env.treasuryManager.setSlippageLimit(env.dai.address, 0.9e8, {"from": env.deployer})
     env.dai.transfer(env.treasuryManager.address, 10000e18, { "from": testAccounts.DAIWhale })
@@ -38,7 +38,7 @@ def test_trading_DAI_very_good_price():
     testAccounts = TestAccounts()
     env = create_environment()
     env.treasuryManager.setManager(testAccounts.testManager, { "from": env.deployer })
-    env.treasuryManager.approveToken(env.dai.address, 2 ** 255, { "from": env.deployer })
+    env.treasuryManager.approveTokens([env.dai.address], [2 ** 255], env.assetProxy.address, { "from": env.deployer })
     env.treasuryManager.setPriceOracle(env.dai.address, '0x6085b0a8f4c7ffa2e8ca578037792d6535d1e29b', {"from": env.deployer})
     env.treasuryManager.setSlippageLimit(env.dai.address, 0.9e8, {"from": env.deployer})
     env.dai.transfer(env.treasuryManager.address, 10000e18, { "from": testAccounts.DAIWhale })
@@ -61,7 +61,7 @@ def test_trading_DAI_bad_price():
     testAccounts = TestAccounts()
     env = create_environment()
     env.treasuryManager.setManager(testAccounts.testManager, { "from": env.deployer })
-    env.treasuryManager.approveToken(env.dai.address, 2 ** 255, { "from": env.deployer })
+    env.treasuryManager.approveTokens([env.dai.address], [2 ** 255], env.assetProxy.address, { "from": env.deployer })
     env.treasuryManager.setPriceOracle(env.dai.address, '0x6085b0a8f4c7ffa2e8ca578037792d6535d1e29b', {"from": env.deployer})
     env.treasuryManager.setSlippageLimit(env.dai.address, 0.9e8, {"from": env.deployer})
     env.dai.transfer(env.treasuryManager.address, 10000e18, { "from": testAccounts.DAIWhale })
@@ -79,7 +79,7 @@ def test_trading_DAI_bad_signature():
     testAccounts = TestAccounts()
     env = create_environment()
     env.treasuryManager.setManager(testAccounts.testManager, { "from": env.deployer })
-    env.treasuryManager.approveToken(env.dai.address, 2 ** 255, { "from": env.deployer })
+    env.treasuryManager.approveTokens([env.dai.address], [2 ** 255], env.assetProxy.address, { "from": env.deployer })
     env.treasuryManager.setPriceOracle(env.dai.address, '0x6085b0a8f4c7ffa2e8ca578037792d6535d1e29b', {"from": env.deployer})
     env.treasuryManager.setSlippageLimit(env.dai.address, 0.9e8, {"from": env.deployer})
     env.dai.transfer(env.treasuryManager.address, 10000e18, { "from": testAccounts.DAIWhale })
@@ -99,7 +99,7 @@ def test_trading_DAI_bad_taker_token():
     testAccounts = TestAccounts()
     env = create_environment()
     env.treasuryManager.setManager(testAccounts.testManager, { "from": env.deployer })
-    env.treasuryManager.approveToken(env.dai.address, 2 ** 255, { "from": env.deployer })
+    env.treasuryManager.approveTokens([env.dai.address], [2 ** 255], env.assetProxy.address, { "from": env.deployer })
     env.treasuryManager.setPriceOracle(env.dai.address, '0x6085b0a8f4c7ffa2e8ca578037792d6535d1e29b', {"from": env.deployer})
     env.treasuryManager.setSlippageLimit(env.dai.address, 0.9e8, {"from": env.deployer})
     env.dai.transfer(env.treasuryManager.address, 10000e18, { "from": testAccounts.DAIWhale })
@@ -117,7 +117,7 @@ def test_trading_DAI_bad_fee_recipient():
     testAccounts = TestAccounts()
     env = create_environment()
     env.treasuryManager.setManager(testAccounts.testManager, { "from": env.deployer })
-    env.treasuryManager.approveToken(env.dai.address, 2 ** 255, { "from": env.deployer })
+    env.treasuryManager.approveTokens([env.dai.address], [2 ** 255], env.assetProxy.address, { "from": env.deployer })
     env.treasuryManager.setPriceOracle(env.dai.address, '0x6085b0a8f4c7ffa2e8ca578037792d6535d1e29b', {"from": env.deployer})
     env.treasuryManager.setSlippageLimit(env.dai.address, 0.9e8, {"from": env.deployer})
     env.dai.transfer(env.treasuryManager.address, 10000e18, { "from": testAccounts.DAIWhale })
@@ -136,7 +136,7 @@ def test_trading_DAI_bad_sender():
     testAccounts = TestAccounts()
     env = create_environment()
     env.treasuryManager.setManager(testAccounts.testManager, { "from": env.deployer })
-    env.treasuryManager.approveToken(env.dai.address, 2 ** 255, { "from": env.deployer })
+    env.treasuryManager.approveTokens([env.dai.address], [2 ** 255], env.assetProxy.address, { "from": env.deployer })
     env.treasuryManager.setPriceOracle(env.dai.address, '0x6085b0a8f4c7ffa2e8ca578037792d6535d1e29b', {"from": env.deployer})
     env.treasuryManager.setSlippageLimit(env.dai.address, 0.9e8, {"from": env.deployer})
     env.dai.transfer(env.treasuryManager.address, 10000e18, { "from": testAccounts.DAIWhale })
@@ -156,7 +156,7 @@ def test_trading_DAI_bad_taker():
     testAccounts = TestAccounts()
     env = create_environment()
     env.treasuryManager.setManager(testAccounts.testManager, { "from": env.deployer })
-    env.treasuryManager.approveToken(env.dai.address, 2 ** 255, { "from": env.deployer })
+    env.treasuryManager.approveTokens([env.dai.address], [2 ** 255], env.assetProxy.address, { "from": env.deployer })
     env.treasuryManager.setPriceOracle(env.dai.address, '0x6085b0a8f4c7ffa2e8ca578037792d6535d1e29b', {"from": env.deployer})
     env.treasuryManager.setSlippageLimit(env.dai.address, 0.9e8, {"from": env.deployer})
     env.dai.transfer(env.treasuryManager.address, 10000e18, { "from": testAccounts.DAIWhale })
@@ -175,7 +175,7 @@ def test_trading_DAI_oracle_not_defined():
     testAccounts = TestAccounts()
     env = create_environment()
     env.treasuryManager.setManager(testAccounts.testManager, { "from": env.deployer })
-    env.treasuryManager.approveToken(env.dai.address, 2 ** 255, { "from": env.deployer })
+    env.treasuryManager.approveTokens([env.dai.address], [2 ** 255], env.assetProxy.address, { "from": env.deployer })
     env.treasuryManager.setSlippageLimit(env.dai.address, 0.9e8, {"from": env.deployer})
     env.dai.transfer(env.treasuryManager.address, 10000e18, { "from": testAccounts.DAIWhale })
     env.weth.approve(env.exchangeV3.address, 2 ** 255, { "from": testAccounts.WETHWhale })
@@ -192,7 +192,7 @@ def test_trading_DAI_slippage_limit_not_defined():
     testAccounts = TestAccounts()
     env = create_environment()
     env.treasuryManager.setManager(testAccounts.testManager, { "from": env.deployer })
-    env.treasuryManager.approveToken(env.dai.address, 2 ** 255, { "from": env.deployer })
+    env.treasuryManager.approveTokens([env.dai.address], [2 ** 255], env.assetProxy.address, { "from": env.deployer })
     env.treasuryManager.setPriceOracle(env.dai.address, '0x6085b0a8f4c7ffa2e8ca578037792d6535d1e29b', {"from": env.deployer})
     env.dai.transfer(env.treasuryManager.address, 10000e18, { "from": testAccounts.DAIWhale })
     env.weth.approve(env.exchangeV3.address, 2 ** 255, { "from": testAccounts.WETHWhale })
@@ -209,7 +209,7 @@ def test_trading_WETH():
     testAccounts = TestAccounts()
     env = create_environment()
     env.treasuryManager.setManager(testAccounts.testManager, { "from": env.deployer })
-    env.treasuryManager.approveToken(env.dai.address, 2 ** 255, { "from": env.deployer })
+    env.treasuryManager.approveTokens([env.dai.address], [2 ** 255], env.assetProxy.address, { "from": env.deployer })
     env.treasuryManager.setPriceOracle(env.dai.address, '0x6085b0a8f4c7ffa2e8ca578037792d6535d1e29b', {"from": env.deployer})
     env.treasuryManager.setSlippageLimit(env.dai.address, 0.9e8, {"from": env.deployer})
     env.dai.transfer(env.treasuryManager.address, 10000e18, { "from": testAccounts.DAIWhale })
@@ -228,7 +228,7 @@ def test_trading_WBTC_good_price():
     testAccounts = TestAccounts()
     env = create_environment()
     env.treasuryManager.setManager(testAccounts.testManager, { "from": env.deployer })
-    env.treasuryManager.approveToken(env.wbtc.address, 2 ** 255, { "from": env.deployer })
+    env.treasuryManager.approveTokens([env.wbtc.address], [2 ** 255], env.assetProxy.address, { "from": env.deployer })
     env.treasuryManager.setPriceOracle(env.wbtc.address, '0x10aae34011c256a9e63ab5ac50154c2539c0f51d', {"from": env.deployer})
     env.treasuryManager.setSlippageLimit(env.wbtc.address, 0.9e8, {"from": env.deployer})
     env.wbtc.transfer(env.treasuryManager.address, 1e8, { "from": testAccounts.WBTCWhale })
@@ -252,7 +252,7 @@ def test_trading_WBTC_bad_price():
     testAccounts = TestAccounts()
     env = create_environment()
     env.treasuryManager.setManager(testAccounts.testManager, { "from": env.deployer })
-    env.treasuryManager.approveToken(env.wbtc.address, 2 ** 255, { "from": env.deployer })
+    env.treasuryManager.approveTokens([env.wbtc.address], [2 ** 255], env.assetProxy.address, { "from": env.deployer })
     env.treasuryManager.setPriceOracle(env.wbtc.address, '0x10aae34011c256a9e63ab5ac50154c2539c0f51d', {"from": env.deployer})
     env.treasuryManager.setSlippageLimit(env.wbtc.address, 0.9e8, {"from": env.deployer})
     env.wbtc.transfer(env.treasuryManager.address, 1e8, { "from": testAccounts.WBTCWhale })
@@ -288,7 +288,7 @@ def test_trading_DAI_non_zero_fees():
     testAccounts = TestAccounts()
     env = create_environment()
     env.treasuryManager.setManager(testAccounts.testManager, { "from": env.deployer })
-    env.treasuryManager.approveToken(env.dai.address, 2 ** 255, { "from": env.deployer })
+    env.treasuryManager.approveTokens([env.dai.address], [2 ** 255], env.assetProxy.address, { "from": env.deployer })
     env.treasuryManager.setPriceOracle(env.dai.address, '0x6085b0a8f4c7ffa2e8ca578037792d6535d1e29b', {"from": env.deployer})
     env.treasuryManager.setSlippageLimit(env.dai.address, 0.9e8, {"from": env.deployer})
     env.dai.transfer(env.treasuryManager.address, 10000e18, { "from": testAccounts.DAIWhale })
@@ -308,7 +308,7 @@ def test_cancel_order_success():
     testAccounts = TestAccounts()
     env = create_environment()
     env.treasuryManager.setManager(testAccounts.testManager, { "from": env.deployer })
-    env.treasuryManager.approveToken(env.dai.address, 2 ** 255, { "from": env.deployer })
+    env.treasuryManager.approveTokens([env.dai.address], [2 ** 255], env.assetProxy.address, { "from": env.deployer })
     env.treasuryManager.setPriceOracle(env.dai.address, '0x6085b0a8f4c7ffa2e8ca578037792d6535d1e29b', {"from": env.deployer})
     env.treasuryManager.setSlippageLimit(env.dai.address, 0.9e8, {"from": env.deployer})
     env.dai.transfer(env.treasuryManager.address, 10000e18, { "from": testAccounts.DAIWhale })
@@ -324,7 +324,7 @@ def test_cancel_order_non_manager():
     testAccounts = TestAccounts()
     env = create_environment()
     env.treasuryManager.setManager(testAccounts.testManager, { "from": env.deployer })
-    env.treasuryManager.approveToken(env.dai.address, 2 ** 255, { "from": env.deployer })
+    env.treasuryManager.approveTokens([env.dai.address], [2 ** 255], env.assetProxy.address, { "from": env.deployer })
     env.treasuryManager.setPriceOracle(env.dai.address, '0x6085b0a8f4c7ffa2e8ca578037792d6535d1e29b', {"from": env.deployer})
     env.treasuryManager.setSlippageLimit(env.dai.address, 0.9e8, {"from": env.deployer})
     env.dai.transfer(env.treasuryManager.address, 10000e18, { "from": testAccounts.DAIWhale })
@@ -341,7 +341,7 @@ def test_invest_eth():
     testAccounts = TestAccounts()
     env = create_environment()
     env.treasuryManager.setManager(testAccounts.testManager, { "from": env.deployer })
-    env.treasuryManager.approveToken(env.dai.address, 2 ** 255, { "from": env.deployer })
+    env.treasuryManager.approveTokens([env.dai.address], [2 ** 255], env.assetProxy.address, { "from": env.deployer })
     env.treasuryManager.approveBalancer({"from": env.deployer})
     env.treasuryManager.setPriceOracle(env.dai.address, '0x6085b0a8f4c7ffa2e8ca578037792d6535d1e29b', {"from": env.deployer})
     env.treasuryManager.setSlippageLimit(env.dai.address, 0.9e8, {"from": env.deployer})
@@ -355,7 +355,88 @@ def test_invest_eth():
     chain.sleep(3600)
     chain.mine()
     bptBefore = env.liquidityGauge.balanceOf(env.sNOTE.address)
+
     assert pytest.approx(bptBefore, abs=1000) == 1214171233776535080795136
     env.treasuryManager.investWETHAndNOTE(0.1e18, 0, 0, {"from": testAccounts.testManager})
     bptAfter = env.liquidityGauge.balanceOf(env.sNOTE.address)
     assert pytest.approx(bptAfter, abs=1000) == 1214253977358427261014080
+
+def test_vebal():
+    testAccounts = TestAccounts()
+    env = create_environment()
+    env.treasuryManager.setManager(testAccounts.testManager, { "from": env.deployer })
+    env.treasuryManager.approveTokens([env.dai.address], [2 ** 255], env.assetProxy.address, { "from": env.deployer })
+    env.treasuryManager.approveTokens([env.balLiquidityToken.address], [2 ** 255], env.veBalDelegator.address, { "from": env.deployer })
+    env.treasuryManager.approveBalancer({"from": env.deployer})
+    env.veBalDelegator.setManagerContract(testAccounts.DAIWhale.address, {"from": env.veBalDelegator.owner()})
+    env.bal.transfer(env.treasuryManager.address, 1000000e18, {"from": testAccounts.BALWhale})
+
+    # Add liquidity
+    assert env.balLiquidityToken.balanceOf(env.treasuryManager.address) == 0
+    env.treasuryManager.addBalancerLiquidity(0, 1000e18, 0, {"from": testAccounts.testManager})
+    assert pytest.approx(env.balLiquidityToken.balanceOf(env.treasuryManager.address), abs=1000) == 413903075600570686781
+
+    # Delegate liquidity to VeBalDelegator
+    env.veBalDelegator.depositToken(
+        env.balLiquidityToken.address,
+        env.treasuryManager.address,
+        env.balLiquidityToken.balanceOf(env.treasuryManager.address), 
+        {"from": env.veBalDelegator.managerContract()}
+    )
+    assert env.balLiquidityToken.balanceOf(env.treasuryManager.address) == 0
+    assert pytest.approx(env.balLiquidityToken.balanceOf(env.veBalDelegator.address), abs=1000) == 413903075600570686781
+
+    # Whitelist VeBalDelegator to lock
+    env.smartWalletChecker.allowlistAddress(env.veBalDelegator.address, {"from": testAccounts.balancerAdmin})
+
+    # Only owner can lock
+    with brownie.reverts():
+        env.veBalDelegator.lock({"from": testAccounts.WETHWhale})
+
+    # Lock VeBAL
+    env.veBalDelegator.lock({"from": env.veBalDelegator.owner()})
+    assert env.balLiquidityToken.balanceOf(env.veBalDelegator.address) == 0
+
+    # Can't unlock
+    with brownie.reverts():
+        env.veBalDelegator.exitLock({"from": env.veBalDelegator.owner()})
+
+    # After at least 1 week
+    chain.sleep(8 * 24 * 60 * 60)
+    chain.mine()
+
+    # Deposit BAL reward token
+    env.bal.approve(env.feeDistributor.address, 2**255, {"from": testAccounts.BALWhale})
+    env.feeDistributor.depositToken(env.bal.address, 1e18, {"from": testAccounts.BALWhale})
+
+    # After 1 year
+    chain.sleep(365 * 24 * 60 * 60 + 1)
+    chain.mine()
+
+    # Test veBAL token claiming
+    balBefore = env.bal.balanceOf(env.veBalDelegator.address)
+    with brownie.reverts():
+        env.veBalDelegator.claimFeeTokens([env.bal.address], {"from": env.veBalDelegator.managerContract()})
+
+    env.veBalDelegator.claimFeeTokens([env.bal.address], {"from": env.veBalDelegator.owner()})
+    balAfter = env.bal.balanceOf(env.veBalDelegator.address)
+    assert pytest.approx(balAfter - balBefore, abs=1000) == 412183160626750
+
+    # Unlock VeBAL
+    env.veBalDelegator.exitLock({"from": env.veBalDelegator.owner()})
+
+    # Withdraw liquidity from VeBalDelegator
+    env.veBalDelegator.withdrawToken(
+        env.balLiquidityToken.address, 
+        env.treasuryManager.address, 
+        2**256 - 1, 
+        {"from": env.veBalDelegator.managerContract()}
+    )
+    assert env.balLiquidityToken.balanceOf(env.veBalDelegator.address) == 0
+    assert pytest.approx(env.balLiquidityToken.balanceOf(env.treasuryManager.address), abs=1000) == 413903075600570686781
+
+    # Remove liquidity
+    env.treasuryManager.removeBalancerLiquidity(0, 0, 2**256 - 1, {"from": testAccounts.testManager})
+    assert env.balLiquidityToken.balanceOf(env.treasuryManager.address) == 0
+    assert pytest.approx(env.bal.balanceOf(env.treasuryManager.address), abs=1000) == 999798411799357549581160
+    assert pytest.approx(env.weth.balanceOf(env.treasuryManager.address), abs=1000) == 979171010408892030

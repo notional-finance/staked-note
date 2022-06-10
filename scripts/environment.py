@@ -2,6 +2,7 @@ import json
 import eth_abi
 import eth_keys
 import time
+from eth_utils import keccak
 from brownie import (
     ZERO_ADDRESS, 
     accounts, 
@@ -13,6 +14,7 @@ from brownie import (
     EmptyProxy, 
     TreasuryManager, 
     ChainlinkAdapter,
+    VeBalDelegator
 )
 from brownie.network.state import Chain
 from brownie.convert.datatypes import Wei
@@ -36,6 +38,11 @@ EnvironmentConfig = {
     "WBTC": "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
     "COMP": "0xc00e94cb662c3520282e6f5717214004a7f26888",
     "BAL": "0xba100000625a3754423978a60c9317c58a424e3D",
+    "BALETH": "0x5c6Ee304399DBdB9C8Ef030aB642B10820DB8F56",
+    "VeToken": "0xC128a9954e6c874eA3d62ce62B468bA073093F25",
+    "FeeDistributor": "0x26743984e3357eFC59f2fd6C1aFDC310335a61c9",
+    "SmartWalletChecker": "0x7869296efd0a76872fee62a058c8fbca5c1c826c", # For whitelisting VeBal
+    "GaugeController": "0xC128468b7Ce63eA702C1f104D55A2566b13D3ABD",
     "COMP_USD_Oracle": "0xdbd020caef83efd542f4de03e3cf0c28a4428bd5",
     "ETH_USD_Oracle": "0x5f4ec3df9cbd43714fe2740f5e3616155c5b8419",
     "Notional": "0x1344a36a1b56144c3bc62e7757377d288fde0369",
@@ -44,6 +51,8 @@ EnvironmentConfig = {
     "GaugeController": "0xC128468b7Ce63eA702C1f104D55A2566b13D3ABD",
     "BalancerMinter": "0x239e55F427D44C3cc793f49bFB507ebe76638a2b",
     "ExchangeV3": "0x61935cbdd02287b511119ddb11aeb42f1593b7ef",
+    "DelegateRegistry": "0x469788fE6E9E9681C6ebF3bF78e7Fd26Fc015446",
+    "BalEthPoolId": "0x5c6ee304399dbdb9c8ef030ab642b10820db8f56000200000000000000000014",
     "balancerPoolConfig": {
         "name": "Staked NOTE Weighted Pool",
         "symbol": "sNOTE-BPT",
@@ -149,6 +158,8 @@ class TestAccounts:
         self.WETHWhale = accounts.at("0x3D71d79C224998E608d03C5Ec9B405E7a38505F0", force=True)
         self.USDCWhale = accounts.at("0x6bb273bf25220d13c9b46c6ed3a5408a3ba9bcc6", force=True)
         self.WBTCWhale = accounts.at("0x92c96306289a7322174d6e091b9e36b14210e4f5", force=True)
+        self.BALWhale = accounts.at("0xcdcebf1f28678eb4a1478403ba7f34c94f7ddbc5", force=True)
+        self.balancerAdmin = accounts.at("0x10a19e7ee7d7f8a52822f6817de8ea18204f2e4f", force=True)
         self.veBALWhale = accounts.at("0xA62315902fAADC69F898cc8B85F86FfD1F6aAeD8", force=True)
         self.testManager = accounts.add('43a6634021d4b1ff7fd350843eebaa7cf547aefbf9503c33af0ec27c83f76827')
 
@@ -156,6 +167,8 @@ class Environment:
     def __init__(self, config, deployer, useFresh) -> None:
         self.config = config
         self.deployer = deployer
+        self.feeDistributor = interface.IFeeDistributor(self.config["FeeDistributor"])
+        self.smartWalletChecker = interface.ISmartWalletChecker(self.config["SmartWalletChecker"])
         self.balancerVault = self.loadBalancerVault(self.config["BalancerVault"])
         self.pool2TokensFactory = self.loadPool2TokensFactory(self.config["WeightedPool2TokensFactory"])
         self.gaugeController = interface.ILiquidityGaugeController(self.config["GaugeController"])
@@ -181,12 +194,25 @@ class Environment:
             self.sNOTEProxy = self.load_sNOTE(self.config['sNOTE'])
             # Upgrade sNOTE for staking
             self.upgrade_sNOTE(self.treasuryManager, False)
+        self.veBalDelegator = VeBalDelegator.deploy(
+            EnvironmentConfig["BALETH"],
+            EnvironmentConfig["VeToken"],
+            EnvironmentConfig["FeeDistributor"],
+            EnvironmentConfig["BalancerMinter"],
+            EnvironmentConfig["GaugeController"],
+            self.sNOTE.address,
+            EnvironmentConfig["DelegateRegistry"],
+            keccak(text="balancer.eth"),
+            self.deployer,
+            {"from": self.deployer}
+        )
+        self.balLiquidityToken = self.loadERC20Token("BALETH")
         self.sNOTE.setVotingOracleWindow(3600, {"from": self.sNOTE.owner()})
         self.treasuryManager = self.upgradeTreasuryManager()
         self.treasuryManager.setPriceOracleWindow(3600, {"from": self.treasuryManager.owner()})
         self.DAIToken = self.loadERC20Token("DAI")
         self.exchangeV3 = self.loadExchangeV3(self.config['ExchangeV3'])
-        self.assetProxy = interface.ERC20Proxy(self.config["ExchangeV3"])
+        self.assetProxy = interface.ERC20Proxy(self.config["ERC20AssetProxy"])
         self.COMPOracle = self.deployCOMPOracle()
 
     def loadExchangeV3(self, address):
@@ -316,18 +342,18 @@ class Environment:
                 "value": self.config["balancerPoolConfig"]["initBalances"][0]
             }
         )
-    
+
     def upgradeTreasuryManager(self):
         treasuryManager = TreasuryManager.deploy(
             EnvironmentConfig["Notional"],
-            EnvironmentConfig["WETH"],
+            self.sNOTEProxy.address,
+            1, # NOTE Index
+            0, # BAL Index
             self.balancerVault,
             self.poolId,
-            EnvironmentConfig["NOTE"],
-            self.sNOTEProxy.address,
-            EnvironmentConfig["ERC20AssetProxy"],
+            EnvironmentConfig["BalEthPoolId"],
+            self.veBalDelegator,
             EnvironmentConfig["ExchangeV3"],
-            0, 1,
             { "from": self.deployer }
         )
 

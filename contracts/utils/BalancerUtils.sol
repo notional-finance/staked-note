@@ -2,6 +2,8 @@
 pragma solidity =0.8.11;
 
 import "../../interfaces/balancer/IPriceOracle.sol";
+import {IVault} from "../../interfaces/balancer/IVault.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 library BalancerUtils {
     function getTimeWeightedOraclePrice(
@@ -18,5 +20,26 @@ library BalancerUtils {
 
         // Gets the balancer time weighted average price denominated in ETH
         return IPriceOracle(pool).getTimeWeightedAverage(queries)[0];
+    }
+
+    function getPoolAddress(IVault vault, bytes32 poolId)
+        internal
+        view
+        returns (IERC20)
+    {
+        // Balancer will revert if pool is not found
+        // prettier-ignore
+        (address poolAddress, /* */) = vault.getPool(poolId);
+        return IERC20(poolAddress);
+    }
+
+    function getTokenAddress(
+        IVault vault,
+        bytes32 poolId,
+        uint256 tokenIndex
+    ) internal view returns (IERC20) {
+        // prettier-ignore
+        (address[] memory tokens, /* */, /* */) = vault.getPoolTokens(poolId);
+        return IERC20(tokens[tokenIndex]);
     }
 }

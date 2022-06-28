@@ -238,4 +238,21 @@ abstract contract LiquidityGaugeVoter is BoringOwnable {
         tokenBalances[from][token] += (balAfter - balBefore);
         emit TokenDeposit(token, from, amount);
     }
+
+    /// @notice Gets a list of reward tokens for a given liquidity gauge
+    /// @param liquidityGauge liquidity gauge address
+    /// @return tokens a list of reward tokens
+    function getGaugeRewardTokens(address liquidityGauge)
+        external
+        view
+        returns (address[] memory tokens)
+    {
+        uint256 count = ILiquidityGauge(liquidityGauge).reward_count();
+
+        tokens = new address[](count);
+
+        for (uint256 i; i < count; i++) {
+            tokens[i] = ILiquidityGauge(liquidityGauge).reward_tokens(i);
+        }
+    }
 }

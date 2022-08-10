@@ -4,8 +4,8 @@ compiler:
       enabled: true
       runs: 200
     remappings:
-      - "@openzeppelin=OpenZeppelin/openzeppelin-contracts@4.5.0"
-      - "@openzeppelin-upgradeable=OpenZeppelin/openzeppelin-contracts-upgradeable@4.5.0"
+      - "@openzeppelin=OpenZeppelin/openzeppelin-contracts@4.7.3"
+      - "@openzeppelin-upgradeable=OpenZeppelin/openzeppelin-contracts-upgradeable@4.7.3"
 
 networks:
   default: development
@@ -22,5 +22,5 @@ reports:
     - interfaces/**/*.*
 
 dependencies:
-  - OpenZeppelin/openzeppelin-contracts@4.5.0
-  - OpenZeppelin/openzeppelin-contracts-upgradeable@4.5.0
+  - OpenZeppelin/openzeppelin-contracts@4.7.3
+  - OpenZeppelin/openzeppelin-contracts-upgradeable@4.7.3

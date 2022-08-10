@@ -173,6 +173,10 @@ contract TreasuryManager is
         manager = newManager;
     }
 
+    function claimBAL() external onlyManager {
+        sNOTE.claimBAL();
+    }
+    
     /// @notice cancelOrder needs to be proxied because 0x expects makerAddress to be address(this)
     /// @param order 0x order object
     function cancelOrder(IExchangeV3.Order calldata order)

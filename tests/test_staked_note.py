@@ -592,7 +592,7 @@ def testClaimBAL():
     env.gaugeController.vote_for_gauge_weights(env.liquidityGauge.address, 10000, {"from": testAccounts.veBALWhale})
     chain.sleep(10 * 24 * 3600)
     chain.mine()
-    txn = env.sNOTE.claimBAL({"from": env.treasuryManager})
+    txn = env.treasuryManager.claimBAL({"from": env.treasuryManager.manager()})
     balClaimed = env.bal.balanceOf(env.treasuryManager)
     assert balClaimed > 110000000000000000000
     assert txn.events["ClaimedBAL"]["balAmount"] == balClaimed

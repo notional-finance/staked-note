@@ -612,7 +612,7 @@ def testGaugeMigration():
         env.balancerMinter,
         {"from": env.sNOTE.owner()}
     )
-    migrateGaugeData = newImpl.migrateGauge.encode_input(env.liquidityGauge.address)
+    migrateGaugeData = newImpl.migrateGauge.encode_input()
     env.sNOTE.upgradeToAndCall(newImpl.address, migrateGaugeData, {"from": env.sNOTE.owner()})
     assert newGauge.balanceOf(env.sNOTE.address) == oldGaugeBalance
     assert pytest.approx(env.bal.balanceOf(env.treasuryManager.address), rel=1e-4) == 605513613125027215343

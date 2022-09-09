@@ -48,6 +48,8 @@ contract sNOTE is
     /// @notice From IPriceOracle.getLargestSafeQueryWindow
     uint32 public constant MAX_ORACLE_WINDOW_SIZE = 122400;
 
+    ILiquidityGauge internal constant OLD_LIQUIDITY_GAUGE = ILiquidityGauge(0x40AC67ea5bD1215D99244651CC71a03468bce6c0);
+
     /// @notice Number of seconds that need to pass before sNOTE can be redeemed
     uint32 public coolDownTimeInSeconds;
 
@@ -211,9 +213,9 @@ contract sNOTE is
         );
     }
 
-    function migrateGauge(ILiquidityGauge oldGauge) external onlyOwner {
-        _claimBAL(oldGauge);
-        oldGauge.withdraw(oldGauge.balanceOf(address(this)), true);
+    function migrateGauge() external onlyOwner {
+        _claimBAL(OLD_LIQUIDITY_GAUGE);
+        OLD_LIQUIDITY_GAUGE.withdraw(OLD_LIQUIDITY_GAUGE.balanceOf(address(this)), true);
         _approveAndStakeAll();
     }
 

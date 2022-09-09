@@ -600,7 +600,7 @@ def testClaimBAL():
 def testGaugeMigration():
     env = create_environment()
     oldGaugeBalance = env.liquidityGauge.balanceOf(env.sNOTE.address)
-    assert env.bal.balanceOf(env.sNOTE.address) == 0
+    assert env.bal.balanceOf(env.treasuryManager.address) == 0
     newGauge = interface.ILiquidityGauge("0x09AFEc27F5A6201617aAd014CeEa8deb572B0608")
     newImpl = sNOTE.deploy(
         env.balancerVault.address,
@@ -615,4 +615,4 @@ def testGaugeMigration():
     migrateGaugeData = newImpl.migrateGauge.encode_input(env.liquidityGauge.address)
     env.sNOTE.upgradeToAndCall(newImpl.address, migrateGaugeData, {"from": env.sNOTE.owner()})
     assert newGauge.balanceOf(env.sNOTE.address) == oldGaugeBalance
-    assert pytest.approx(env.bal.balanceOf(env.sNOTE.address), rel=1e-4) == 0
+    assert pytest.approx(env.bal.balanceOf(env.treasuryManager.address), rel=1e-4) == 605513613125027215343

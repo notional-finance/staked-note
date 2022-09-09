@@ -211,6 +211,12 @@ contract sNOTE is
         );
     }
 
+    function migrateGauge(ILiquidityGauge oldGauge) external onlyOwner {
+        _claimBAL(oldGauge);
+        oldGauge.withdraw(oldGauge.balanceOf(address(this)), true);
+        _approveAndStakeAll();
+    }
+
     /** User Methods **/
 
     /// @notice Mints sNOTE from the underlying BPT token.
@@ -431,14 +437,18 @@ contract sNOTE is
         }
     }
 
-    /// @notice Allows the treasury manager contract to claim BAL from the liquidity gauge
-    function claimBAL() external nonReentrant onlyManagerContract {
+    function _claimBAL(ILiquidityGauge liquidityGauge) internal {
         uint256 balBefore = BALANCER_TOKEN.balanceOf(address(this));
-        BALANCER_MINTER.mint(address(LIQUIDITY_GAUGE));
+        BALANCER_MINTER.mint(address(liquidityGauge));
         uint256 balAfter = BALANCER_TOKEN.balanceOf(address(this));
         uint256 claimAmount = balAfter - balBefore;
         BALANCER_TOKEN.safeTransfer(TREASURY_MANAGER_CONTRACT, claimAmount);
         emit ClaimedBAL(claimAmount);
+    }
+
+    /// @notice Allows the treasury manager contract to claim BAL from the liquidity gauge
+    function claimBAL() external nonReentrant onlyManagerContract {
+        _claimBAL(LIQUIDITY_GAUGE);
     }
 
     function _stakeAll() internal {
@@ -446,13 +456,17 @@ contract sNOTE is
         LIQUIDITY_GAUGE.deposit(bptBalance, address(this), false);
     }
 
-    /// @notice Approve and stake all tokens in one transaction
-    function approveAndStakeAll() external nonReentrant onlyOwner {
+    function _approveAndStakeAll() internal {
         BALANCER_POOL_TOKEN.safeApprove(
             address(LIQUIDITY_GAUGE),
             type(uint256).max
         );
         _stakeAll();
+    }
+
+    /// @notice Approve and stake all tokens in one transaction
+    function approveAndStakeAll() external nonReentrant onlyOwner {
+        _approveAndStakeAll();
     }
 
     /// @notice Deposits all BPT owned by the sNOTE contract into the liquidity gauge

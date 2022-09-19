@@ -16,7 +16,7 @@
             "id": "0x5122e01d819e58bb2e22528c0d68d310f0aa6fd7000200000000000000000163"
         },
         "sNoteEmptyImpl": "0xef8cf4651f2a7f0666817f626441aaddcb2695fb",
-        "sNoteImpl": "0x64622768E55Dc2EC61A99C566094F4C45bbc294d",
+        "sNoteImpl": "0x00c2Eea3d2f0dAC6B88b07B33c6C01a7Da65a940",
         "sNoteProxy": "0x38de42f4ba8a35056b33a746a6b45be9b1c3b9d2",
         "treasuryManagerImpl": "0x735553B8c47ACC91b55454231aB9Cf591ba8799f",
         "treasuryManager": "0x53144559c0d4a3304e2dd9dafbd685247429216d"

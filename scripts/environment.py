@@ -62,7 +62,8 @@ EnvironmentConfig = {
     'sNOTEConfig': {
         'owner': '0x22341fB5D92D3d801144aA5A925F401A91418A05',
         'coolDownSeconds': 100
-    }
+    },
+    'TreasuryManager': '0x53144559c0d4a3304e2dd9dafbd685247429216d'
 }
 
 def sign_defunct_message_raw(account, message: bytes) -> SignedMessage:
@@ -146,10 +147,11 @@ class TestAccounts:
         self.ETHWhale = accounts.at("0x9acb5CE4878144a74eEeDEda54c675AA59E0D3D2", force=True) # A good source of ETH
         self.cETHWhale = accounts.at("0x1a1cd9c606727a7400bb2da6e4d5c70db5b4cade", force=True) # A good source of cETH
         self.NOTEWhale = accounts.at("0x22341fB5D92D3d801144aA5A925F401A91418A05", force=True)
-        self.WETHWhale = accounts.at("0x3D71d79C224998E608d03C5Ec9B405E7a38505F0", force=True)
+        self.WETHWhale = accounts.at("0xeD1840223484483C0cb050E6fC344d1eBF0778a9", force=True)
         self.USDCWhale = accounts.at("0x6bb273bf25220d13c9b46c6ed3a5408a3ba9bcc6", force=True)
-        self.WBTCWhale = accounts.at("0x92c96306289a7322174d6e091b9e36b14210e4f5", force=True)
+        self.WBTCWhale = accounts.at("0x22616bBa2351CC5FE66612050Ab2997b7561358c", force=True)
         self.veBALWhale = accounts.at("0xA62315902fAADC69F898cc8B85F86FfD1F6aAeD8", force=True)
+        self.BALWhale = accounts.at("0xcdcebf1f28678eb4a1478403ba7f34c94f7ddbc5", force=True)
         self.testManager = accounts.add('43a6634021d4b1ff7fd350843eebaa7cf547aefbf9503c33af0ec27c83f76827')
 
 class Environment:
@@ -182,11 +184,14 @@ class Environment:
             # Upgrade sNOTE for staking
             self.upgrade_sNOTE(self.treasuryManager, False)
         self.sNOTE.setVotingOracleWindow(3600, {"from": self.sNOTE.owner()})
-        self.treasuryManager = self.upgradeTreasuryManager()
+        if useFresh:
+            self.treasuryManager = self.upgradeTreasuryManager()
+        else:
+            self.treasuryManager = self.load_treasuryManager(self.config['TreasuryManager'])
         self.treasuryManager.setPriceOracleWindow(3600, {"from": self.treasuryManager.owner()})
         self.DAIToken = self.loadERC20Token("DAI")
         self.exchangeV3 = self.loadExchangeV3(self.config['ExchangeV3'])
-        self.assetProxy = interface.ERC20Proxy(self.config["ExchangeV3"])
+        self.assetProxy = interface.ERC20Proxy(self.config["ERC20AssetProxy"])
         self.COMPOracle = self.deployCOMPOracle()
 
     def loadExchangeV3(self, address):
@@ -201,6 +206,9 @@ class Environment:
 
     def load_sNOTE(self, address):
         return Contract.from_abi('sNOTE', address, sNOTE.abi)
+
+    def load_treasuryManager(self, address):
+        return Contract.from_abi('TreasuryManager', address, TreasuryManager.abi)
 
     def load_WETH(self, address):
         with open("./abi/ERC20.json", "r") as f:
@@ -272,9 +280,9 @@ class Environment:
             )
             self.sNOTEProxy.upgradeToAndCall(sNOTEInit, initializeCallData, {'from': self.deployer})
             self.sNOTEProxy.upgradeTo(sNOTEImpl, {"from": self.deployer})
-        else:
-            stakeAllCalldata = sNOTEImpl.approveAndStakeAll.encode_input()
-            self.sNOTEProxy.upgradeToAndCall(sNOTEImpl, stakeAllCalldata, {'from': self.deployer})
+#        else:
+#            stakeAllCalldata = sNOTEImpl.approveAndStakeAll.encode_input()
+#            self.sNOTEProxy.upgradeToAndCall(sNOTEImpl, stakeAllCalldata, {'from': self.deployer})
         
         return self.load_sNOTE(self.sNOTEProxy.address)
 
@@ -379,6 +387,4 @@ def create_environment(useFresh = False):
     return Environment(EnvironmentConfig, testAccounts.NOTEWhale, useFresh)
     
 def main():
-    env = create_environment()
-    testAccounts = TestAccounts()
-
+    pass

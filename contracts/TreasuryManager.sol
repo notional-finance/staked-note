@@ -231,19 +231,11 @@ contract TreasuryManager is
         emit PriceOracleWindowUpdated(_priceOracleWindowInSeconds);
     }
 
-    function executeTrade(
-        Trade calldata trade, 
-        uint8 dexId, 
-        uint32 dynamicSlippageLimit
-    ) external onlyManager {
+    function executeTrade(Trade calldata trade, uint8 dexId) external onlyManager {
         require(trade.sellToken != address(WETH));
         require(trade.buyToken == address(WETH));
-        uint256 slippageLimit = slippageLimits[trade.sellToken];
 
-        // Slippage limit not defined
-        require(slippageLimit != 0, "slippage limit not defined");
-        require(dynamicSlippageLimit <= slippageLimit);
-        trade._executeTradeWithDynamicSlippage(dexId, TRADING_MODULE, dynamicSlippageLimit);
+        trade._executeTrade(dexId, TRADING_MODULE);
     }
 
     /// @notice Allows treasury manager to invest WETH and NOTE into the Balancer pool

@@ -69,6 +69,12 @@ contract TreasuryManager is
         bytes32 orderHash,
         uint256 orderTakerAssetFilledAmount
     );
+    event TradeExecuted(
+        address indexed sellToken,
+        address indexed buyToken,
+        uint256 sellAmount,
+        uint256 buyAmount
+    );
 
     /// @notice Emitted when cool down time is updated
     event InvestmentCoolDownUpdated(uint256 newCoolDownTimeSeconds);
@@ -231,11 +237,13 @@ contract TreasuryManager is
         emit PriceOracleWindowUpdated(_priceOracleWindowInSeconds);
     }
 
-    function executeTrade(Trade calldata trade, uint8 dexId) external onlyManager {
+    function executeTrade(Trade calldata trade, uint8 dexId) 
+        external onlyManager returns (uint256 amountSold, uint256 amountBought) {
         require(trade.sellToken != address(WETH));
         require(trade.buyToken == address(WETH));
 
-        trade._executeTrade(dexId, TRADING_MODULE);
+        (amountSold, amountBought) = trade._executeTrade(dexId, TRADING_MODULE);
+        emit TradeExecuted(trade.sellToken, trade.buyToken, amountSold, amountBought);
     }
 
     /// @notice Allows treasury manager to invest WETH and NOTE into the Balancer pool

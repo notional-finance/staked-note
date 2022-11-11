@@ -356,6 +356,10 @@ def test_dex_trading():
         chain.time() + 20000,
         get_univ3_single_data(3000)
     ]
+    amountSold = env.comp.balanceOf(env.treasuryManager.address)
     assert env.weth.balanceOf(env.treasuryManager.address) == 0
-    env.treasuryManager.executeTrade(trade, DEX_ID["UNISWAP_V3"], {"from": testAccounts.testManager})
+    txn = env.treasuryManager.executeTrade(trade, DEX_ID["UNISWAP_V3"], {"from": testAccounts.testManager})
+    amountBought = env.weth.balanceOf(env.treasuryManager.address)
     assert pytest.approx(env.weth.balanceOf(env.treasuryManager.address), rel=1e-4) == 3240870833743493949
+    assert txn.return_value[0] == amountSold
+    assert txn.return_value[1] == amountBought

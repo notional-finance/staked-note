@@ -7,7 +7,7 @@
     "test": "tests"
   },
   "dependencies": {
-    "hardhat": "^2.7.0"
+    "hardhat": "^2.12.2"
   },
   "devDependencies": {},
   "scripts": {

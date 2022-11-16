@@ -7,9 +7,11 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {BoringOwnable} from "./utils/BoringOwnable.sol";
 import {EIP1271Wallet} from "./utils/EIP1271Wallet.sol";
+import {TradeHandler} from "./utils/TradeHandler.sol";
 import {IVault, IAsset} from "../interfaces/balancer/IVault.sol";
 import {NotionalTreasuryAction} from "../interfaces/notional/NotionalTreasuryAction.sol";
 import {WETH9} from "../interfaces/WETH9.sol";
+import {ITradingModule, Trade} from "../interfaces/trading/ITradingModule.sol";
 import "../interfaces/0x/IExchangeV3.sol";
 import "../interfaces/notional/IStakedNote.sol";
 import "./utils/BalancerUtils.sol";
@@ -21,6 +23,7 @@ contract TreasuryManager is
     UUPSUpgradeable
 {
     using SafeERC20 for IERC20;
+    using TradeHandler for Trade;
 
     /// @notice precision used to limit the amount of NOTE price impact (1e8 = 100%)
     uint256 internal constant NOTE_PURCHASE_LIMIT_PRECISION = 1e8;
@@ -33,6 +36,7 @@ contract TreasuryManager is
     bytes32 public immutable NOTE_ETH_POOL_ID;
     address public immutable ASSET_PROXY;
     IExchangeV3 public immutable EXCHANGE;
+    ITradingModule public immutable TRADING_MODULE;
     uint32 public constant MAXIMUM_COOL_DOWN_PERIOD_SECONDS = 30 days;
     
     /// @notice From IPriceOracle.getLargestSafeQueryWindow
@@ -65,6 +69,12 @@ contract TreasuryManager is
         bytes32 orderHash,
         uint256 orderTakerAssetFilledAmount
     );
+    event TradeExecuted(
+        address indexed sellToken,
+        address indexed buyToken,
+        uint256 sellAmount,
+        uint256 buyAmount
+    );
 
     /// @notice Emitted when cool down time is updated
     event InvestmentCoolDownUpdated(uint256 newCoolDownTimeSeconds);
@@ -89,7 +99,8 @@ contract TreasuryManager is
         address _assetProxy,
         IExchangeV3 _exchange,
         uint256 _wethIndex,
-        uint256 _noteIndex
+        uint256 _noteIndex,
+        ITradingModule _tradingModule
     ) EIP1271Wallet(_weth) initializer {
         // Balancer will revert if pool is not found
         // prettier-ignore
@@ -106,6 +117,7 @@ contract TreasuryManager is
         ASSET_PROXY = _assetProxy;
         BALANCER_POOL_TOKEN = ERC20(poolAddress);
         EXCHANGE = _exchange;
+        TRADING_MODULE = _tradingModule;
     }
 
     function initialize(
@@ -173,6 +185,10 @@ contract TreasuryManager is
         manager = newManager;
     }
 
+    function claimBAL() external onlyManager {
+        sNOTE.claimBAL();
+    }
+    
     /// @notice cancelOrder needs to be proxied because 0x expects makerAddress to be address(this)
     /// @param order 0x order object
     function cancelOrder(IExchangeV3.Order calldata order)
@@ -223,6 +239,15 @@ contract TreasuryManager is
         require(_priceOracleWindowInSeconds <= MAX_ORACLE_WINDOW_SIZE);
         priceOracleWindowInSeconds = _priceOracleWindowInSeconds;
         emit PriceOracleWindowUpdated(_priceOracleWindowInSeconds);
+    }
+
+    function executeTrade(Trade calldata trade, uint8 dexId) 
+        external onlyManager returns (uint256 amountSold, uint256 amountBought) {
+        require(trade.sellToken != address(WETH));
+        require(trade.buyToken == address(WETH));
+
+        (amountSold, amountBought) = trade._executeTrade(dexId, TRADING_MODULE);
+        emit TradeExecuted(trade.sellToken, trade.buyToken, amountSold, amountBought);
     }
 
     /// @notice Allows treasury manager to invest WETH and NOTE into the Balancer pool

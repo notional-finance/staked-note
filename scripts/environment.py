@@ -40,7 +40,7 @@ EnvironmentConfig = {
     "ETH_USD_Oracle": "0x5f4ec3df9cbd43714fe2740f5e3616155c5b8419",
     "Notional": "0x1344a36a1b56144c3bc62e7757377d288fde0369",
     "ERC20AssetProxy": "0x95E6F48254609A6ee006F7D493c8e5fB97094ceF",
-    "LiquidityGauge": "0x40ac67ea5bd1215d99244651cc71a03468bce6c0",
+    "LiquidityGauge": "0x09AFEc27F5A6201617aAd014CeEa8deb572B0608",
     "GaugeController": "0xC128468b7Ce63eA702C1f104D55A2566b13D3ABD",
     "BalancerMinter": "0x239e55F427D44C3cc793f49bFB507ebe76638a2b",
     "ExchangeV3": "0x61935cbdd02287b511119ddb11aeb42f1593b7ef",
@@ -63,7 +63,8 @@ EnvironmentConfig = {
         'owner': '0x22341fB5D92D3d801144aA5A925F401A91418A05',
         'coolDownSeconds': 100
     },
-    'TreasuryManager': '0x53144559c0d4a3304e2dd9dafbd685247429216d'
+    'TreasuryManager': '0x53144559c0d4a3304e2dd9dafbd685247429216d',
+    'TradingModule': '0x594734c7e06C3D483466ADBCe401C6Bd269746C8'
 }
 
 def sign_defunct_message_raw(account, message: bytes) -> SignedMessage:
@@ -158,6 +159,7 @@ class Environment:
     def __init__(self, config, deployer, useFresh) -> None:
         self.config = config
         self.deployer = deployer
+        self.notional = self.loadNotional(self.config["Notional"])
         self.balancerVault = self.loadBalancerVault(self.config["BalancerVault"])
         self.pool2TokensFactory = self.loadPool2TokensFactory(self.config["WeightedPool2TokensFactory"])
         self.gaugeController = interface.ILiquidityGaugeController(self.config["GaugeController"])
@@ -188,16 +190,31 @@ class Environment:
             self.treasuryManager = self.upgradeTreasuryManager()
         else:
             self.treasuryManager = self.load_treasuryManager(self.config['TreasuryManager'])
+            self.treasuryManager.upgradeTo(
+                "0xB6C192D815777DDe81078Ba3F3AC45e3283eC951", 
+                {"from": self.treasuryManager.owner()}
+            )
         self.treasuryManager.setPriceOracleWindow(3600, {"from": self.treasuryManager.owner()})
         self.DAIToken = self.loadERC20Token("DAI")
         self.exchangeV3 = self.loadExchangeV3(self.config['ExchangeV3'])
         self.assetProxy = interface.ERC20Proxy(self.config["ERC20AssetProxy"])
         self.COMPOracle = self.deployCOMPOracle()
+        self.tradingModule = self.loadTradingModule(self.config["TradingModule"])
+        self.tradingModule.setPriceOracle(
+            self.comp.address, 
+            self.config["COMP_USD_Oracle"], 
+            {"from": self.notional.owner()}
+        )
 
     def loadExchangeV3(self, address):
         with open("./abi/0x/ExchangeV3.json", "r") as f:
             abi = json.load(f)
         return Contract.from_abi("ExchangeV3", address, abi)
+
+    def loadNotional(self, address):
+        with open("./abi/notional/Notional.json", "r") as f:
+            abi = json.load(f)
+        return Contract.from_abi('Notional', address, abi)
 
     def loadNOTE(self, address):
         with open("./abi/notional/note.json", "r") as f:
@@ -239,6 +256,11 @@ class Environment:
         with open("./abi/balancer/LiquidityGauge.json", "r") as f:
             abi = json.load(f)
         return Contract.from_abi('LiquidityGauge', address, abi)
+
+    def loadTradingModule(self, address):
+        with open("./abi/TradingModule.json", "r") as f:
+            abi = json.load(f)
+        return Contract.from_abi('TradidngModule', address, abi)
 
     def loadERC20Token(self, token):
         with open("./abi/ERC20.json", "r") as f:
@@ -324,9 +346,9 @@ class Environment:
                 "value": self.config["balancerPoolConfig"]["initBalances"][0]
             }
         )
-    
-    def upgradeTreasuryManager(self):
-        treasuryManager = TreasuryManager.deploy(
+
+    def deployTreasuryManager(self):
+        return TreasuryManager.deploy(
             EnvironmentConfig["Notional"],
             EnvironmentConfig["WETH"],
             self.balancerVault,
@@ -336,11 +358,14 @@ class Environment:
             EnvironmentConfig["ERC20AssetProxy"],
             EnvironmentConfig["ExchangeV3"],
             0, 1,
+            EnvironmentConfig["TradingModule"],
             { "from": self.deployer }
         )
-
-        initData = treasuryManager.initialize.encode_input(self.deployer, self.deployer, SECONDS_IN_DAY)
-        self.treasuryManager.upgradeToAndCall(treasuryManager, initData, {'from': self.deployer})
+    
+    def upgradeTreasuryManager(self):
+        impl = self.deployTreasuryManager()
+        initData = impl.initialize.encode_input(self.deployer, self.deployer, SECONDS_IN_DAY)
+        self.treasuryManager.upgradeToAndCall(impl, initData, {'from': self.deployer})
         return Contract.from_abi("TreasuryManagerProxy", self.treasuryManager.address, TreasuryManager.abi)
 
     def deployCOMPOracle(self):

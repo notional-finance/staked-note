@@ -12,10 +12,10 @@ networks:
   development:
     mainnet-fork:
       cmd_settings:
-        fork_block:  15927266
+        fork_block:  15984656
   mainnet-fork:
     cmd_settings:
-      fork_block:  15927266
+      fork_block:  15984656
 
 reports:
   exclude_paths:

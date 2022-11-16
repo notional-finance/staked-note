@@ -47,17 +47,21 @@ def test_invest_eth():
     chain.sleep(3600)
     chain.mine()
     bptBefore = env.liquidityGauge.balanceOf(env.sNOTE.address)
-    assert pytest.approx(bptBefore, rel=1e-4) == 2681104964191060915650071
+    assert pytest.approx(bptBefore, rel=1e-4) == 2644811198189584937030572
     env.treasuryManager.investWETHAndNOTE(0.1e18, 0, 0, {"from": testAccounts.testManager})
     bptAfter = env.liquidityGauge.balanceOf(env.sNOTE.address)
-    assert pytest.approx(bptAfter, rel=1e-4) == 2681210603455045401060799
+    assert pytest.approx(bptAfter, rel=1e-4) == 2644925761215924412295058
 
 def test_dex_trading():
     testAccounts = TestAccounts()
     env = create_environment()
     impl = env.deployTreasuryManager()
     env.treasuryManager.upgradeTo(impl, {"from": env.treasuryManager.owner()})
-    env.treasuryManager.setManager(testAccounts.testManager, { "from": env.deployer })
+    env.treasuryManager.setManager(testAccounts.testManager, { "from": env.deployer})
+    env.treasuryManager.harvestCOMPFromNotional(
+        ["0x4ddc2d193948926d02f9b1fe9e1daa0718270ed5"], 
+        {"from": testAccounts.testManager}
+    )
     env.tradingModule.setTokenPermissions(
         env.treasuryManager.address, 
         env.comp.address, 
@@ -78,8 +82,10 @@ def test_dex_trading():
     ]
     amountSold = env.comp.balanceOf(env.treasuryManager.address)
     assert env.weth.balanceOf(env.treasuryManager.address) == 0
-    txn = env.treasuryManager.executeTrade(trade, DEX_ID["UNISWAP_V3"], {"from": testAccounts.testManager})
+    env.treasuryManager.executeTrade(trade, DEX_ID["UNISWAP_V3"], {"from": testAccounts.testManager})
     amountBought = env.weth.balanceOf(env.treasuryManager.address)
-    assert pytest.approx(env.weth.balanceOf(env.treasuryManager.address), rel=1e-4) == 3240870833743493949
-    assert txn.return_value[0] == amountSold
-    assert txn.return_value[1] == amountBought
+    assert pytest.approx(env.weth.balanceOf(env.treasuryManager.address), rel=1e-4) == 14010883102666608721
+    chain.undo()
+    ret = env.treasuryManager.executeTrade.call(trade, DEX_ID["UNISWAP_V3"], {"from": testAccounts.testManager})
+    assert ret[0] == amountSold
+    assert ret[1] == amountBought

@@ -143,7 +143,7 @@ def test_mint_from_bpt():
     assert env.balancerPool.balanceOf(env.sNOTE.address) == 0
 
     assert txn.events["SNoteMinted"]["account"] == testAccounts.ETHWhale
-    assert pytest.approx(txn.events["SNoteMinted"]["wethChangeAmount"], rel=1e-4) == 41542449628663
+    assert pytest.approx(txn.events["SNoteMinted"]["wethChangeAmount"], rel=1e-4) == 37526074700914
     assert pytest.approx(txn.events["SNoteMinted"]["noteChangeAmount"], rel=1e-4) == 79919995
     assert txn.events["SNoteMinted"]["bptChangeAmount"] == bptBalance
 
@@ -450,10 +450,10 @@ def test_get_voting_power_single_staker_price_increasing():
 
     env.sNOTE.mintFromETH(env.note.balanceOf(testAccounts.WETHWhale), 0, {"from": testAccounts.WETHWhale})
     assert env.balancerPool.balanceOf(env.sNOTE) == 0
-    assert pytest.approx(env.sNOTE.balanceOf(testAccounts.WETHWhale), rel=1e-4) == 32195180331865180
+    assert pytest.approx(env.sNOTE.balanceOf(testAccounts.WETHWhale), rel=1e-4) == 31496294694890848
 
     supplyShare = env.sNOTE.balanceOf(testAccounts.WETHWhale) / env.sNOTE.totalSupply()
-    assert pytest.approx(supplyShare, rel=1e-4) == 8.217665047650811e-08
+    assert pytest.approx(supplyShare, rel=1e-4) == 8.160769472597696e-08
 
     # Sleep through the oracle window
     # TODO: remove after full oracle initialization
@@ -464,7 +464,7 @@ def test_get_voting_power_single_staker_price_increasing():
     noteBalance = env.balancerVault.getPoolTokens(env.poolId)[1][1]
     totalVotingPower = env.sNOTE.getVotingPower(env.sNOTE.totalSupply())
     assert totalVotingPower < noteBalance 
-    assert pytest.approx(totalVotingPower, rel=1e-4) == 972583299145006
+    assert pytest.approx(totalVotingPower, rel=1e-4) == 979288608526188
 
     # Check voting power of the account
     votingPower = env.sNOTE.getVotingPower(env.sNOTE.balanceOf(testAccounts.WETHWhale))
@@ -476,10 +476,10 @@ def test_get_voting_power_single_staker_price_increasing():
 
     env.sNOTE.mintFromETH(env.note.balanceOf(testAccounts.WETHWhale), 0, {"from": testAccounts.WETHWhale})
     assert env.balancerPool.balanceOf(env.sNOTE) == 0
-    assert pytest.approx(env.sNOTE.balanceOf(testAccounts.WETHWhale), rel=1e-4) == 193171186187951587
+    assert pytest.approx(env.sNOTE.balanceOf(testAccounts.WETHWhale), rel=1e-4) == 188977869826239362
 
     supplyShare = env.sNOTE.balanceOf(testAccounts.WETHWhale) / env.sNOTE.totalSupply()
-    assert pytest.approx(supplyShare, rel=1e-4) == 4.930599662260584e-07
+    assert pytest.approx(supplyShare, rel=1e-4) == 4.896462319568112e-07
 
     # Sleep through the oracle window
     # TODO: remove after full oracle initialization
@@ -490,11 +490,11 @@ def test_get_voting_power_single_staker_price_increasing():
     noteBalance = env.balancerVault.getPoolTokens(env.poolId)[1][1]
     totalVotingPower = env.sNOTE.getVotingPower(env.sNOTE.totalSupply())
     assert totalVotingPower < noteBalance 
-    assert pytest.approx(totalVotingPower, rel=1e-4) == 972583698763454
+    assert pytest.approx(totalVotingPower, rel=1e-4) == 979289327783583
 
     # Check voting power of the account
     votingPower = env.sNOTE.votingPowerWithoutDelegation(testAccounts.WETHWhale)
-    assert pytest.approx(votingPower, rel=1e-4) == 479553979
+    assert pytest.approx(votingPower, rel=1e-4) == 479505172
     assert pytest.approx(votingPower / totalVotingPower, rel=1e-4) == supplyShare
 
 def test_get_voting_power_single_staker_price_decreasing_fast():
@@ -507,10 +507,10 @@ def test_get_voting_power_single_staker_price_decreasing_fast():
 
     env.sNOTE.mintFromETH(10e8, 0, {"from": testAccounts.NOTEWhale})
     assert env.balancerPool.balanceOf(env.sNOTE) == 0
-    assert pytest.approx(env.sNOTE.balanceOf(testAccounts.NOTEWhale), rel=1e-4) == 321951811502945299
+    assert pytest.approx(env.sNOTE.balanceOf(testAccounts.NOTEWhale), rel=1e-4) == 314962955860687669
 
     supplyShare = env.sNOTE.balanceOf(testAccounts.NOTEWhale) / env.sNOTE.totalSupply()
-    assert pytest.approx(supplyShare, rel=1e-4) == 8.217659178853443e-07
+    assert pytest.approx(supplyShare, rel=1e-4) == 8.160763709673934e-07
 
     env.sellNOTE(5e8, testAccounts.NOTEWhale)
 
@@ -523,7 +523,7 @@ def test_get_voting_power_single_staker_price_decreasing_fast():
     noteBalance = env.balancerVault.getPoolTokens(env.poolId)[1][1]
     totalVotingPower = env.sNOTE.getVotingPower(env.sNOTE.totalSupply())
     assert totalVotingPower < noteBalance 
-    assert pytest.approx(totalVotingPower, rel=1e-4) == 972584018457767
+    assert pytest.approx(totalVotingPower, rel=1e-4) == 979289327783583
 
     # Check voting power of the account
     votingPower = env.sNOTE.votingPowerWithoutDelegation(testAccounts.NOTEWhale)
@@ -541,10 +541,10 @@ def test_get_voting_power_single_staker_price_decreasing_slow():
 
     env.sNOTE.mintFromETH(10e8, 0, {"from": testAccounts.NOTEWhale})
     assert env.balancerPool.balanceOf(env.sNOTE) == 0
-    assert pytest.approx(env.sNOTE.balanceOf(testAccounts.NOTEWhale), rel=1e-4) == 321951811502945299
+    assert pytest.approx(env.sNOTE.balanceOf(testAccounts.NOTEWhale), rel=1e-4) == 314962955860687669
 
     supplyShare = env.sNOTE.balanceOf(testAccounts.NOTEWhale) / env.sNOTE.totalSupply()
-    assert pytest.approx(supplyShare, rel=1e-4) == 8.217659178853443e-07
+    assert pytest.approx(supplyShare, rel=1e-4) == 8.160763709673934e-07
 
     # Oracle price is not affected without a certain amount of delay
     env.sellNOTE(1e8, testAccounts.NOTEWhale)
@@ -572,7 +572,7 @@ def test_get_voting_power_single_staker_price_decreasing_slow():
     noteBalance = env.balancerVault.getPoolTokens(env.poolId)[1][1]
     totalVotingPower = env.sNOTE.getVotingPower(env.sNOTE.totalSupply())
     assert totalVotingPower < noteBalance 
-    assert pytest.approx(totalVotingPower, rel=1e-4) == 972584018457767
+    assert pytest.approx(totalVotingPower, rel=1e-4) == 979289327783583
 
     # Check voting power of the account
     votingPower = env.sNOTE.votingPowerWithoutDelegation(testAccounts.NOTEWhale)
@@ -594,6 +594,6 @@ def testClaimBAL():
     chain.mine()
     txn = env.treasuryManager.claimBAL({"from": env.treasuryManager.manager()})
     balClaimed = env.bal.balanceOf(env.treasuryManager) - balBefore
-    assert pytest.approx(balClaimed, rel=1e-4) == 145677652375721454871
+    assert pytest.approx(balClaimed, rel=1e-4) == 153211217317450103292
     assert txn.events["ClaimedBAL"]["balAmount"] == balClaimed
     

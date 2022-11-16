@@ -190,6 +190,8 @@ class Environment:
             self.treasuryManager = self.upgradeTreasuryManager()
         else:
             self.treasuryManager = self.load_treasuryManager(self.config['TreasuryManager'])
+            impl = self.deployTreasuryManager()
+            self.treasuryManager.upgradeTo(impl.address, {"from": self.treasuryManager.owner()})
         self.treasuryManager.setPriceOracleWindow(3600, {"from": self.treasuryManager.owner()})
         self.DAIToken = self.loadERC20Token("DAI")
         self.exchangeV3 = self.loadExchangeV3(self.config['ExchangeV3'])

@@ -232,22 +232,7 @@ contract EIP1271Wallet {
         bytes calldata signature,
         address signer
     ) internal view returns (bytes4) {
-        _validateOrder(data);
-
-        (address recovered, ECDSA.RecoverError error) = ECDSA.tryRecover(
-            keccak256(
-                abi.encodePacked(
-                    "\x19Ethereum Signed Message:\n32",
-                    _extractOrderHash(data)
-                )
-            ),
-            signature
-        );
-
-        if (error == ECDSA.RecoverError.NoError && recovered == signer) {
-            return EIP1271_MAGIC_NUM;
-        }
-
+        // 0x trading disabled
         return EIP1271_INVALID_SIG;
     }
 }

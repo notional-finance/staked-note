@@ -83,10 +83,10 @@ contract TreasuryManager is
     /// @notice Emitted when price oracle window is updated
     event PriceOracleWindowUpdated(uint256 _priceOracleWindowInSeconds);
 
-    event VaultRewardTokensClaimed(address vault, IERC20[] rewardTokens, uint256[] claimedBalances);
+    event VaultRewardTokensClaimed(address indexed vault, IERC20[] rewardTokens, uint256[] claimedBalances);
 
     event VaultRewardReinvested(
-        address vault, 
+        address indexed vault, 
         address indexed rewardToken, 
         uint256 primaryAmount, 
         uint256 secondaryAmount, 

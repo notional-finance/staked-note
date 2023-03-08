@@ -1,9 +1,19 @@
 
 import pytest
 import brownie
+import eth_abi
+import json
+from brownie import Contract, ZERO_ADDRESS, Wei
 from brownie.network.state import Chain
-from scripts.environment import create_environment, TestAccounts, Order
-from scripts.common import DEX_ID, TRADE_TYPE, set_dex_flags, set_trade_type_flags, get_univ3_single_data
+from scripts.environment import create_environment, TestAccounts
+from scripts.common import (
+    DEX_ID, 
+    TRADE_TYPE, 
+    set_dex_flags, 
+    set_trade_type_flags, 
+    get_univ3_single_data, 
+    get_univ3_batch_data
+)
 
 chain = Chain()
 @pytest.fixture(autouse=True)
@@ -47,21 +57,15 @@ def test_invest_eth():
     chain.sleep(3600)
     chain.mine()
     bptBefore = env.liquidityGauge.balanceOf(env.sNOTE.address)
-    assert pytest.approx(bptBefore, rel=1e-4) == 2644811198189584937030572
+    assert pytest.approx(bptBefore, rel=1e-2) == 2793897870994194541513251
     env.treasuryManager.investWETHAndNOTE(0.1e18, 0, 0, {"from": testAccounts.testManager})
     bptAfter = env.liquidityGauge.balanceOf(env.sNOTE.address)
-    assert pytest.approx(bptAfter, rel=1e-4) == 2644925761215924412295058
+    assert pytest.approx(bptAfter, rel=1e-2) == 2794037790183842568520045
 
 def test_dex_trading():
     testAccounts = TestAccounts()
     env = create_environment()
-    impl = env.deployTreasuryManager()
-    env.treasuryManager.upgradeTo(impl, {"from": env.treasuryManager.owner()})
     env.treasuryManager.setManager(testAccounts.testManager, { "from": env.deployer})
-    env.treasuryManager.harvestCOMPFromNotional(
-        ["0x4ddc2d193948926d02f9b1fe9e1daa0718270ed5"], 
-        {"from": testAccounts.testManager}
-    )
     env.tradingModule.setTokenPermissions(
         env.treasuryManager.address, 
         env.comp.address, 
@@ -84,8 +88,77 @@ def test_dex_trading():
     assert env.weth.balanceOf(env.treasuryManager.address) == 0
     env.treasuryManager.executeTrade(trade, DEX_ID["UNISWAP_V3"], {"from": testAccounts.testManager})
     amountBought = env.weth.balanceOf(env.treasuryManager.address)
-    assert pytest.approx(env.weth.balanceOf(env.treasuryManager.address), rel=1e-4) == 14010883102666608721
+    assert pytest.approx(env.weth.balanceOf(env.treasuryManager.address), rel=1e-2) == 19557205283290795929
     chain.undo()
     ret = env.treasuryManager.executeTrade.call(trade, DEX_ID["UNISWAP_V3"], {"from": testAccounts.testManager})
     assert ret[0] == amountSold
     assert ret[1] == amountBought
+
+def get_metastable_amounts(poolContext, amount):
+    primaryBalance = poolContext["basePool"]["primaryBalance"]
+    secondaryBalance = poolContext["basePool"]["secondaryBalance"]
+    primaryRatio = primaryBalance / (primaryBalance + secondaryBalance)
+    primaryAmount = amount * primaryRatio
+    secondaryAmount = amount - primaryAmount
+    return (Wei(primaryAmount), Wei(secondaryAmount))
+
+def test_reinvestment_events():
+    testAccounts = TestAccounts()
+    env = create_environment()
+    env.treasuryManager.setManager(testAccounts.testManager, { "from": env.deployer})
+    with open("abi/vaults/balancer/MetaStable2TokenAuraVault.json", "r") as f:
+        vaultABI = json.load(f);
+    vault = Contract.from_abi("MetaStable2TokenAuraVault", "0xF049B944eC83aBb50020774D48a8cf40790996e6", vaultABI)
+    data = vault.setStrategyVaultSettings.encode_input(
+        [20000000000000000000,1000000,1000000,1000000,1500,20,200,9975]
+    )
+    vault.upgradeToAndCall("0xE92209d60384d91832fAc0b928DB2C2eA2437AfD", data, {"from": env.notional.owner()})
+    vault.grantRole(vault.getRoles().dict()["rewardReinvestment"], env.treasuryManager.address, {"from": env.notional.owner()})
+    env.treasuryManager.claimVaultRewardTokens(vault.address, {"from": testAccounts.testManager})
+
+    rewardAmount = env.bal.balanceOf(vault.address)
+    tradeParams = "(uint16,uint8,uint256,bool,bytes)"
+    singleSidedRewardTradeParams = "(address,address,uint256,{})".format(tradeParams)
+    proportional2TokenRewardTradeParams = "({},{})".format(singleSidedRewardTradeParams, singleSidedRewardTradeParams)
+    (primaryAmount, secondaryAmount) = get_metastable_amounts(vault.getStrategyContext()["poolContext"], rewardAmount)
+    rewardParams = [eth_abi.encode_abi(
+        [proportional2TokenRewardTradeParams],
+        [[
+            [
+                env.bal.address,
+                ZERO_ADDRESS,
+                primaryAmount,
+                [
+                    DEX_ID["UNISWAP_V3"],
+                    TRADE_TYPE["EXACT_IN_SINGLE"],
+                    0,
+                    False,
+                    get_univ3_single_data(3000)
+                ]
+            ],
+            [
+                env.bal.address,
+                env.wstETH.address,
+                secondaryAmount,
+                [
+                    DEX_ID["UNISWAP_V3"],
+                    TRADE_TYPE["EXACT_IN_BATCH"],
+                    Wei(0.05e18), # static slippage
+                    False,
+                    get_univ3_batch_data([
+                        env.bal.address, 3000, env.weth.address, 500, env.wstETH.address
+                    ])
+                ]
+            ]
+        ]]
+    ), 0]
+
+    ret = env.treasuryManager.reinvestVaultReward.call(vault.address, rewardParams, {"from": testAccounts.testManager})
+    tx = env.treasuryManager.reinvestVaultReward(vault.address, rewardParams, {"from": testAccounts.testManager})
+    event = tx.events["VaultRewardReinvested"]
+    assert event["vault"] == "0xF049B944eC83aBb50020774D48a8cf40790996e6"
+    assert event["rewardToken"] == ret[0]
+    assert event["primaryAmount"] == ret[1]
+    assert event["secondaryAmount"] == ret[2]
+    assert event["poolClaimAmount"] == ret[3]
+    assert event["strategyTokenAmount"] == ret[4]

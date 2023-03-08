@@ -200,15 +200,15 @@ contract TreasuryManager is
         sNOTE.claimBAL();
     }
 
-    function claimVaultRewardTokens(IStrategyVault vault) external onlyManager returns (
+    function claimVaultRewardTokens(address vault) external onlyManager returns (
         IERC20[] memory rewardTokens, 
         uint256[] memory claimedBalances
     ) {
-        (rewardTokens, claimedBalances) = vault.claimRewardTokens();
-        emit VaultRewardTokensClaimed(address(vault), rewardTokens, claimedBalances);
+        (rewardTokens, claimedBalances) = IStrategyVault(vault).claimRewardTokens();
+        emit VaultRewardTokensClaimed(vault, rewardTokens, claimedBalances);
     }
 
-    function reinvestVaultReward(IStrategyVault vault, IStrategyVault.ReinvestRewardParams calldata params) 
+    function reinvestVaultReward(address vault, IStrategyVault.ReinvestRewardParams calldata params) 
         external onlyManager returns (
             address rewardToken,
             uint256 primaryAmount,
@@ -216,9 +216,9 @@ contract TreasuryManager is
             uint256 poolClaimAmount,
             uint256 strategyTokenAmount
     ) {
-        (rewardToken, primaryAmount, secondaryAmount, poolClaimAmount) = vault.reinvestReward(params);
-        strategyTokenAmount = vault.convertPoolClaimToStrategyTokens(poolClaimAmount);
-        emit VaultRewardReinvested(address(vault), rewardToken, primaryAmount, secondaryAmount, poolClaimAmount, strategyTokenAmount);
+        (rewardToken, primaryAmount, secondaryAmount, poolClaimAmount) = IStrategyVault(vault).reinvestReward(params);
+        strategyTokenAmount = IStrategyVault(vault).convertPoolClaimToStrategyTokens(poolClaimAmount);
+        emit VaultRewardReinvested(vault, rewardToken, primaryAmount, secondaryAmount, poolClaimAmount, strategyTokenAmount);
     }
     
     /// @notice cancelOrder needs to be proxied because 0x expects makerAddress to be address(this)

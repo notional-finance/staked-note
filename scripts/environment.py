@@ -36,6 +36,7 @@ EnvironmentConfig = {
     "WBTC": "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
     "COMP": "0xc00e94cb662c3520282e6f5717214004a7f26888",
     "BAL": "0xba100000625a3754423978a60c9317c58a424e3D",
+    "wstETH": "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
     "COMP_USD_Oracle": "0xdbd020caef83efd542f4de03e3cf0c28a4428bd5",
     "ETH_USD_Oracle": "0x5f4ec3df9cbd43714fe2740f5e3616155c5b8419",
     "Notional": "0x1344a36a1b56144c3bc62e7757377d288fde0369",
@@ -145,7 +146,7 @@ class TestAccounts:
     def __init__(self) -> None:
         self.DAIWhale = accounts.at("0x6dfaf865a93d3b0b5cfd1b4db192d1505676645b", force=True) # A good source of DAI
         self.cDAIWhale = accounts.at("0x33b890d6574172e93e58528cd99123a88c0756e9", force=True) # A good source of cDAI
-        self.ETHWhale = accounts.at("0x9acb5CE4878144a74eEeDEda54c675AA59E0D3D2", force=True) # A good source of ETH
+        self.ETHWhale = accounts.at("0x1b3cb81e51011b549d78bf720b0d924ac763a7c2", force=True) # A good source of ETH
         self.cETHWhale = accounts.at("0x1a1cd9c606727a7400bb2da6e4d5c70db5b4cade", force=True) # A good source of cETH
         self.NOTEWhale = accounts.at("0x22341fB5D92D3d801144aA5A925F401A91418A05", force=True)
         self.WETHWhale = accounts.at("0xeD1840223484483C0cb050E6fC344d1eBF0778a9", force=True)
@@ -170,6 +171,7 @@ class Environment:
         self.wbtc = self.loadERC20Token("WBTC")
         self.comp = self.loadERC20Token("COMP")
         self.bal = self.loadERC20Token("BAL")
+        self.wstETH = self.loadERC20Token("wstETH")
         self.treasuryManager = self.deployEmptyProxy()
         if useFresh:
             # This is a fresh deployment of sNOTE
@@ -190,8 +192,9 @@ class Environment:
             self.treasuryManager = self.upgradeTreasuryManager()
         else:
             self.treasuryManager = self.load_treasuryManager(self.config['TreasuryManager'])
+            impl = self.deployTreasuryManager()
             self.treasuryManager.upgradeTo(
-                "0xB6C192D815777DDe81078Ba3F3AC45e3283eC951", 
+                impl.address, 
                 {"from": self.treasuryManager.owner()}
             )
         self.treasuryManager.setPriceOracleWindow(3600, {"from": self.treasuryManager.owner()})

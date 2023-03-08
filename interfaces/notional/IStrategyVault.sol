@@ -9,13 +9,6 @@ interface IStrategyVault {
         uint256 minPoolClaim;
     }
 
-    struct StrategyVaultRoles {
-        bytes32 normalSettlement;
-        bytes32 emergencySettlement;
-        bytes32 postMaturitySettlement;
-        bytes32 rewardReinvestment;
-    }
-
     function decimals() external view returns (uint8);
     function name() external view returns (string memory);
     function strategy() external view returns (bytes4 strategyId);
@@ -61,7 +54,7 @@ interface IStrategyVault {
 
     function convertPoolClaimToStrategyTokens(uint256 poolClaim)
         external view returns (uint256 strategyTokenAmount);
-
+   
     function claimRewardTokens() external returns (IERC20[] memory rewardTokens, uint256[] memory claimedBalances);
 
     function reinvestReward(ReinvestRewardParams calldata params) external returns (

@@ -108,3 +108,16 @@ def set_trade_type_flags(flags, **kwargs):
 
 def get_univ3_single_data(fee):
     return eth_abi.encode_abi(['(uint24)'], [[fee]])
+
+def get_univ3_batch_data(path):
+    pathTypes = []
+    for idx in range(len(path)):
+        if idx % 2 == 0:
+            pathTypes.append('address')
+        else:
+            pathTypes.append('uint24')
+    packedEncoder = eth_abi.codec.ABIEncoder(eth_abi.registry.registry_packed)
+    return eth_abi.encode_abi(['(bytes)'], [[packedEncoder.encode_abi(
+        pathTypes,
+        path,
+    )]])

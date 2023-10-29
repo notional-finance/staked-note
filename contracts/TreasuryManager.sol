@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.11;
 
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
@@ -14,6 +13,7 @@ import {WETH9} from "../interfaces/WETH9.sol";
 import {ITradingModule, Trade} from "../interfaces/trading/ITradingModule.sol";
 import "../interfaces/0x/IExchangeV3.sol";
 import "../interfaces/notional/IStakedNote.sol";
+import "../interfaces/notional/IStrategyVault.sol";
 import "./utils/BalancerUtils.sol";
 
 contract TreasuryManager is
@@ -82,6 +82,17 @@ contract TreasuryManager is
 
     /// @notice Emitted when price oracle window is updated
     event PriceOracleWindowUpdated(uint256 _priceOracleWindowInSeconds);
+
+    event VaultRewardTokensClaimed(address indexed vault, IERC20[] rewardTokens, uint256[] claimedBalances);
+
+    event VaultRewardReinvested(
+        address indexed vault, 
+        address indexed rewardToken, 
+        uint256 primaryAmount, 
+        uint256 secondaryAmount, 
+        uint256 poolClaimAmount,
+        uint256 strategyTokenAmount
+    );
 
     /// @dev Restricted methods for the treasury manager
     modifier onlyManager() {
@@ -187,6 +198,27 @@ contract TreasuryManager is
 
     function claimBAL() external onlyManager {
         sNOTE.claimBAL();
+    }
+
+    function claimVaultRewardTokens(address vault) external onlyManager returns (
+        IERC20[] memory rewardTokens, 
+        uint256[] memory claimedBalances
+    ) {
+        (rewardTokens, claimedBalances) = IStrategyVault(vault).claimRewardTokens();
+        emit VaultRewardTokensClaimed(vault, rewardTokens, claimedBalances);
+    }
+
+    function reinvestVaultReward(address vault, IStrategyVault.ReinvestRewardParams calldata params) 
+        external onlyManager returns (
+            address rewardToken,
+            uint256 primaryAmount,
+            uint256 secondaryAmount,
+            uint256 poolClaimAmount,
+            uint256 strategyTokenAmount
+    ) {
+        (rewardToken, primaryAmount, secondaryAmount, poolClaimAmount) = IStrategyVault(vault).reinvestReward(params);
+        strategyTokenAmount = IStrategyVault(vault).convertPoolClaimToStrategyTokens(poolClaimAmount);
+        emit VaultRewardReinvested(vault, rewardToken, primaryAmount, secondaryAmount, poolClaimAmount, strategyTokenAmount);
     }
     
     /// @notice cancelOrder needs to be proxied because 0x expects makerAddress to be address(this)

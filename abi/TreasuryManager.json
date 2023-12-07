@@ -12,48 +12,18 @@
                 "type": "address"
             },
             {
-                "internalType": "contract IVault",
-                "name": "_balancerVault",
-                "type": "address"
-            },
-            {
-                "internalType": "bytes32",
-                "name": "_noteETHPoolId",
-                "type": "bytes32"
-            },
-            {
                 "internalType": "contract IERC20",
                 "name": "_note",
                 "type": "address"
             },
             {
-                "internalType": "contract IStakedNote",
-                "name": "_sNOTE",
-                "type": "address"
-            },
-            {
-                "internalType": "address",
-                "name": "_assetProxy",
-                "type": "address"
-            },
-            {
-                "internalType": "contract IExchangeV3",
-                "name": "_exchange",
-                "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "_wethIndex",
-                "type": "uint256"
-            },
-            {
-                "internalType": "uint256",
-                "name": "_noteIndex",
-                "type": "uint256"
-            },
-            {
                 "internalType": "contract ITradingModule",
                 "name": "_tradingModule",
+                "type": "address"
+            },
+            {
+                "internalType": "contract IVault",
+                "name": "_balancerVault",
                 "type": "address"
             }
         ],

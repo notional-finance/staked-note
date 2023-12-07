@@ -101,31 +101,31 @@ contract TreasuryManager is
     constructor(
         NotionalTreasuryAction _notional,
         WETH9 _weth,
-        IVault _balancerVault,
-        bytes32 _noteETHPoolId,
         IERC20 _note,
-        IStakedNote _sNOTE,
-        address _assetProxy,
-        IExchangeV3 _exchange,
-        uint256 _wethIndex,
-        uint256 _noteIndex,
-        ITradingModule _tradingModule
+        ITradingModule _tradingModule,
+        IVault _balancerVault
+        // bytes32 _noteETHPoolId,
+        // IStakedNote _sNOTE,
+        // address _assetProxy,
+        // IExchangeV3 _exchange,
+        // uint256 _wethIndex,
+        // uint256 _noteIndex,
     ) EIP1271Wallet(_weth) initializer {
         // Balancer will revert if pool is not found
         // prettier-ignore
-        (address poolAddress, /* */) = _balancerVault.getPool(_noteETHPoolId);
+        // (address poolAddress, /* */) = _balancerVault.getPool(_noteETHPoolId);
 
-        WETH_INDEX = _wethIndex;
-        NOTE_INDEX = _noteIndex;
+        WETH_INDEX = 0; // _wethIndex;
+        NOTE_INDEX = 0; // _noteIndex;
 
         NOTIONAL = NotionalTreasuryAction(_notional);
-        sNOTE = _sNOTE;
+        sNOTE = IStakedNote(address(0));
         NOTE = _note;
         BALANCER_VAULT = _balancerVault;
-        NOTE_ETH_POOL_ID = _noteETHPoolId;
-        ASSET_PROXY = _assetProxy;
-        BALANCER_POOL_TOKEN = ERC20(poolAddress);
-        EXCHANGE = _exchange;
+        NOTE_ETH_POOL_ID = bytes32(0); // _noteETHPoolId;
+        ASSET_PROXY = address(0);
+        BALANCER_POOL_TOKEN = ERC20(address(0));
+        EXCHANGE = IExchangeV3(address(0));
         TRADING_MODULE = _tradingModule;
     }
 

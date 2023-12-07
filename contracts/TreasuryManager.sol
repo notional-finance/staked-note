@@ -86,12 +86,10 @@ contract TreasuryManager is
     event VaultRewardTokensClaimed(address indexed vault, IERC20[] rewardTokens, uint256[] claimedBalances);
 
     event VaultRewardReinvested(
-        address indexed vault, 
-        address indexed rewardToken, 
-        uint256 primaryAmount, 
-        uint256 secondaryAmount, 
-        uint256 poolClaimAmount,
-        uint256 strategyTokenAmount
+        address indexed vault,
+        address indexed rewardToken,
+        uint256 amountSold,
+        uint256 poolClaimAmount
     );
 
     /// @dev Restricted methods for the treasury manager
@@ -200,25 +198,17 @@ contract TreasuryManager is
         sNOTE.claimBAL();
     }
 
-    function claimVaultRewardTokens(address vault) external onlyManager returns (
-        IERC20[] memory rewardTokens, 
-        uint256[] memory claimedBalances
-    ) {
-        (rewardTokens, claimedBalances) = IStrategyVault(vault).claimRewardTokens();
-        emit VaultRewardTokensClaimed(vault, rewardTokens, claimedBalances);
+    function claimVaultRewardTokens(address vault) external onlyManager {
+        IStrategyVault(vault).claimRewardTokens();
     }
 
-    function reinvestVaultReward(address vault, IStrategyVault.ReinvestRewardParams calldata params) 
-        external onlyManager returns (
-            address rewardToken,
-            uint256 primaryAmount,
-            uint256 secondaryAmount,
-            uint256 poolClaimAmount,
-            uint256 strategyTokenAmount
-    ) {
-        (rewardToken, primaryAmount, secondaryAmount, poolClaimAmount) = IStrategyVault(vault).reinvestReward(params);
-        strategyTokenAmount = IStrategyVault(vault).convertPoolClaimToStrategyTokens(poolClaimAmount);
-        emit VaultRewardReinvested(vault, rewardToken, primaryAmount, secondaryAmount, poolClaimAmount, strategyTokenAmount);
+    function reinvestVaultReward(
+        address vault,
+        IStrategyVault.SingleSidedRewardTradeParams[] calldata trades,
+        uint256 minPoolClaim
+    ) external onlyManager returns (address rewardToken, uint256 amountSold, uint256 poolClaimAmount) {
+        (rewardToken, amountSold, poolClaimAmount) = IStrategyVault(vault).reinvestReward(trades, minPoolClaim);
+        emit VaultRewardReinvested(vault, rewardToken, amountSold, poolClaimAmount);
     }
     
     /// @notice cancelOrder needs to be proxied because 0x expects makerAddress to be address(this)

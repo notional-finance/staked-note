@@ -50,6 +50,11 @@
                 "internalType": "uint256",
                 "name": "_noteIndex",
                 "type": "uint256"
+            },
+            {
+                "internalType": "contract ITradingModule",
+                "name": "_tradingModule",
+                "type": "address"
             }
         ],
         "name": "constructor",
@@ -143,6 +148,19 @@
             }
         ],
         "name": "COMPHarvested",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "uint8",
+                "name": "version",
+                "type": "uint8"
+            }
+        ],
+        "name": "Initialized",
         "type": "event"
     },
     {
@@ -291,11 +309,98 @@
             {
                 "indexed": true,
                 "internalType": "address",
+                "name": "sellToken",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "buyToken",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "sellAmount",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "buyAmount",
+                "type": "uint256"
+            }
+        ],
+        "name": "TradeExecuted",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
                 "name": "implementation",
                 "type": "address"
             }
         ],
         "name": "Upgraded",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "vault",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "rewardToken",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "amountSold",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "poolClaimAmount",
+                "type": "uint256"
+            }
+        ],
+        "name": "VaultRewardReinvested",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "vault",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "contract IERC20[]",
+                "name": "rewardTokens",
+                "type": "address[]"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256[]",
+                "name": "claimedBalances",
+                "type": "uint256[]"
+            }
+        ],
+        "name": "VaultRewardTokensClaimed",
         "type": "event"
     },
     {
@@ -421,6 +526,19 @@
         "outputs": [
             {
                 "internalType": "contract NotionalTreasuryAction",
+                "name": "",
+                "type": "address"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "TRADING_MODULE",
+        "outputs": [
+            {
+                "internalType": "contract ITradingModule",
                 "name": "",
                 "type": "address"
             }
@@ -579,7 +697,27 @@
     },
     {
         "inputs": [],
+        "name": "claimBAL",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
         "name": "claimOwnership",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "vault",
+                "type": "address"
+            }
+        ],
+        "name": "claimVaultRewardTokens",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"
@@ -595,6 +733,72 @@
             }
         ],
         "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "components": [
+                    {
+                        "internalType": "enum TradeType",
+                        "name": "tradeType",
+                        "type": "uint8"
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "sellToken",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "buyToken",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "amount",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "limit",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "deadline",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "bytes",
+                        "name": "exchangeData",
+                        "type": "bytes"
+                    }
+                ],
+                "internalType": "struct Trade",
+                "name": "trade",
+                "type": "tuple"
+            },
+            {
+                "internalType": "uint8",
+                "name": "dexId",
+                "type": "uint8"
+            }
+        ],
+        "name": "executeTrade",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "amountSold",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "amountBought",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "nonpayable",
         "type": "function"
     },
     {
@@ -801,6 +1005,89 @@
             }
         ],
         "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "vault",
+                "type": "address"
+            },
+            {
+                "components": [
+                    {
+                        "internalType": "address",
+                        "name": "sellToken",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "buyToken",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "amount",
+                        "type": "uint256"
+                    },
+                    {
+                        "components": [
+                            {
+                                "internalType": "uint16",
+                                "name": "dexId",
+                                "type": "uint16"
+                            },
+                            {
+                                "internalType": "enum TradeType",
+                                "name": "tradeType",
+                                "type": "uint8"
+                            },
+                            {
+                                "internalType": "uint256",
+                                "name": "oracleSlippagePercentOrLimit",
+                                "type": "uint256"
+                            },
+                            {
+                                "internalType": "bytes",
+                                "name": "exchangeData",
+                                "type": "bytes"
+                            }
+                        ],
+                        "internalType": "struct IStrategyVault.TradeParams",
+                        "name": "tradeParams",
+                        "type": "tuple"
+                    }
+                ],
+                "internalType": "struct IStrategyVault.SingleSidedRewardTradeParams[]",
+                "name": "trades",
+                "type": "tuple[]"
+            },
+            {
+                "internalType": "uint256",
+                "name": "minPoolClaim",
+                "type": "uint256"
+            }
+        ],
+        "name": "reinvestVaultReward",
+        "outputs": [
+            {
+                "internalType": "address",
+                "name": "rewardToken",
+                "type": "address"
+            },
+            {
+                "internalType": "uint256",
+                "name": "amountSold",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "poolClaimAmount",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "nonpayable",
         "type": "function"
     },
     {

@@ -1,0 +1,11 @@
+[profile.default]
+src = "contracts"
+libs = ["node_modules", "lib"]
+remappings = [
+    "@openzeppelin=lib/openzeppelin-contracts",
+    "@openzeppelin-upgradeable=lib/openzeppelin-contracts-upgradeable",
+]
+verbosity = 3
+
+[rpc_endpoints]
+arbitrum = "${ARBITRUM_RPC_URL}"

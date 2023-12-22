@@ -204,13 +204,24 @@ contract TreasuryManager is
 
     function reinvestVaultReward(
         address vault,
-        IStrategyVault.SingleSidedRewardTradeParams[] calldata trades,
-        uint256 minPoolClaim
-    ) external onlyManager returns (address rewardToken, uint256 amountSold, uint256 poolClaimAmount) {
-        (rewardToken, amountSold, poolClaimAmount) = IStrategyVault(vault).reinvestReward(trades, minPoolClaim);
-        emit VaultRewardReinvested(vault, rewardToken, amountSold, poolClaimAmount);
+        IStrategyVault.SingleSidedRewardTradeParams[][] calldata tradesPerRewardToken,
+        uint256[] calldata minPoolClaims
+    ) external onlyManager returns (
+        address[] memory rewardTokens,
+        uint256[] memory amountsSold,
+        uint256[] memory poolClaimAmounts
+    ) {
+        rewardTokens = new address[](tradesPerRewardToken.length);
+        amountsSold = new uint256[](tradesPerRewardToken.length);
+        poolClaimAmounts = new uint256[](tradesPerRewardToken.length);
+
+        for (uint256 i = 0; i < tradesPerRewardToken.length; i++) {
+          (rewardTokens[i], amountsSold[i], poolClaimAmounts[i]) =
+            IStrategyVault(vault).reinvestReward(tradesPerRewardToken[i], minPoolClaims[i]);
+          emit VaultRewardReinvested(vault, rewardTokens[i], amountsSold[i], poolClaimAmounts[i]);
+        }
     }
-    
+
     /// @notice cancelOrder needs to be proxied because 0x expects makerAddress to be address(this)
     /// @param order 0x order object
     function cancelOrder(IExchangeV3.Order calldata order)

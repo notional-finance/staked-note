@@ -20,8 +20,6 @@ contract RedeemNToken is Test {
 
     WETH9 constant WETH = WETH9(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
     ITradingModule constant TRADING_MODULE = ITradingModule(0xBf6B9c5608D520469d8c4BD1E24F850497AF0Bb8);
-    IVault constant BALANCER_VAULT = IVault(0xBA12222222228d8Ba445958a75a0704d566BF2C8);
-    IERC20 NOTE = IERC20(0x019bE259BC299F3F653688c7655C87F998Bc7bC1);
 
     string ARBITRUM_RPC_URL = vm.envString("ARBITRUM_RPC_URL");
     uint256 ARBITRUM_FORK_BLOCK = 162581350;
@@ -35,9 +33,7 @@ contract RedeemNToken is Test {
         TreasuryManager newTreasuryManger = new TreasuryManager(
             NotionalTreasuryAction(address(NOTIONAL)),
             WETH,
-            NOTE,
-            TRADING_MODULE,
-            BALANCER_VAULT
+            TRADING_MODULE
         );
         vm.prank(NOTIONAL.owner());
         treasuryManager.upgradeTo(address(newTreasuryManger));

@@ -5,19 +5,16 @@ import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {BoringOwnable} from "./utils/BoringOwnable.sol";
-import {EIP1271Wallet} from "./utils/EIP1271Wallet.sol";
 import {TradeHandler} from "./utils/TradeHandler.sol";
 import {IVault, IAsset} from "../interfaces/balancer/IVault.sol";
 import {NotionalTreasuryAction} from "../interfaces/notional/NotionalTreasuryAction.sol";
 import {WETH9} from "../interfaces/WETH9.sol";
 import {ITradingModule, Trade} from "../interfaces/trading/ITradingModule.sol";
-import "../interfaces/0x/IExchangeV3.sol";
 import "../interfaces/notional/IStakedNote.sol";
 import "../interfaces/notional/IStrategyVault.sol";
 import "./utils/BalancerUtils.sol";
 
 contract TreasuryManager is
-    EIP1271Wallet,
     BoringOwnable,
     Initializable,
     UUPSUpgradeable
@@ -28,24 +25,25 @@ contract TreasuryManager is
     /// @notice precision used to limit the amount of NOTE price impact (1e8 = 100%)
     uint256 internal constant NOTE_PURCHASE_LIMIT_PRECISION = 1e8;
 
+    // following constants are relevant only for mainnet
+    IERC20 public constant NOTE = IERC20(0xCFEAead4947f0705A14ec42aC3D44129E1Ef3eD5);
+    IStakedNote public constant sNOTE = IStakedNote(0x38DE42F4BA8a35056b33A746A6b45bE9B1c3B9d2);
+    bytes32 public constant NOTE_ETH_POOL_ID = 0x5122e01d819e58bb2e22528c0d68d310f0aa6fd7000200000000000000000163;
+    ERC20 public constant BALANCER_POOL_TOKEN = ERC20(0x5122E01D819E58BB2E22528c0D68D310f0AA6FD7);
+    IVault public constant BALANCER_VAULT = IVault(0xBA12222222228d8Ba445958a75a0704d566BF2C8);
+    uint256 public constant WETH_INDEX = 0;
+    uint256 public constant NOTE_INDEX = 1;
+
     NotionalTreasuryAction public immutable NOTIONAL;
-    IERC20 public immutable NOTE;
-    IVault public immutable BALANCER_VAULT;
-    ERC20 public immutable BALANCER_POOL_TOKEN;
-    IStakedNote public immutable sNOTE;
-    bytes32 public immutable NOTE_ETH_POOL_ID;
-    address public immutable ASSET_PROXY;
-    IExchangeV3 public immutable EXCHANGE;
+    WETH9 public immutable WETH;
     ITradingModule public immutable TRADING_MODULE;
     uint32 public constant MAXIMUM_COOL_DOWN_PERIOD_SECONDS = 30 days;
-    
+
     /// @notice From IPriceOracle.getLargestSafeQueryWindow
     uint32 public constant MAX_ORACLE_WINDOW_SIZE = 122400;
 
     /// @notice Balancer token indexes
     /// Balancer requires token addresses to be sorted BAL#102
-    uint256 public immutable WETH_INDEX;
-    uint256 public immutable NOTE_INDEX;
 
     address public manager;
 
@@ -62,7 +60,7 @@ contract TreasuryManager is
 
     event ManagementTransferred(address prevManager, address newManager);
     event AssetsHarvested(uint16[] currencies, uint256[] amounts);
-    event COMPHarvested(address[] ctokens, uint256 amount);
+    event AssetInterestHarvested(uint16[] currencies);
     event NOTEPurchaseLimitUpdated(uint256 purchaseLimit);
     event OrderCancelled(
         uint8 orderStatus,
@@ -101,31 +99,24 @@ contract TreasuryManager is
     constructor(
         NotionalTreasuryAction _notional,
         WETH9 _weth,
-        IERC20 _note,
-        ITradingModule _tradingModule,
-        IVault _balancerVault
-        // bytes32 _noteETHPoolId,
-        // IStakedNote _sNOTE,
-        // address _assetProxy,
-        // IExchangeV3 _exchange,
-        // uint256 _wethIndex,
-        // uint256 _noteIndex,
-    ) EIP1271Wallet(_weth) initializer {
-        // Balancer will revert if pool is not found
-        // prettier-ignore
-        // (address poolAddress, /* */) = _balancerVault.getPool(_noteETHPoolId);
+        ITradingModule _tradingModule
+    ) initializer {
+        uint chainId;
+        assembly {
+            chainId := chainid()
+        }
+        if (chainId == 1) {
+            // Balancer will revert if pool is not found
+            (address poolAddress, /* */) = BALANCER_VAULT.getPool(NOTE_ETH_POOL_ID);
+            require(poolAddress == address(BALANCER_POOL_TOKEN), "1");
 
-        WETH_INDEX = 0; // _wethIndex;
-        NOTE_INDEX = 0; // _noteIndex;
+            (address[] memory poolTokens,,) = BALANCER_VAULT.getPoolTokens(NOTE_ETH_POOL_ID);
+            require(poolTokens[WETH_INDEX] == address(_weth), "2");
+            require(poolTokens[NOTE_INDEX] == address(NOTE), "3");
+        }
 
         NOTIONAL = NotionalTreasuryAction(_notional);
-        sNOTE = IStakedNote(address(0));
-        NOTE = _note;
-        BALANCER_VAULT = _balancerVault;
-        NOTE_ETH_POOL_ID = bytes32(0); // _noteETHPoolId;
-        ASSET_PROXY = address(0);
-        BALANCER_POOL_TOKEN = ERC20(address(0));
-        EXCHANGE = IExchangeV3(address(0));
+        WETH = _weth;
         TRADING_MODULE = _tradingModule;
     }
 
@@ -141,33 +132,12 @@ contract TreasuryManager is
         emit ManagementTransferred(address(0), _manager);
     }
 
-    function approveToken(address token, uint256 amount) external onlyOwner {
-        IERC20(token).safeApprove(ASSET_PROXY, 0);
-        IERC20(token).safeApprove(ASSET_PROXY, amount);
-    }
-
     function approveBalancer() external onlyOwner {
         NOTE.safeApprove(address(BALANCER_VAULT), type(uint256).max);
         IERC20(address(WETH)).safeApprove(
             address(BALANCER_VAULT),
             type(uint256).max
         );
-    }
-
-    function setPriceOracle(address tokenAddress, address oracleAddress)
-        external
-        onlyOwner
-    {
-        /// @dev oracleAddress validated inside _setPriceOracle
-        _setPriceOracle(tokenAddress, oracleAddress);
-    }
-
-    function setSlippageLimit(address tokenAddress, uint256 slippageLimit)
-        external
-        onlyOwner
-    {
-        /// @dev slippageLimit validated inside _setSlippageLimit
-        _setSlippageLimit(tokenAddress, slippageLimit);
     }
 
     function setNOTEPurchaseLimit(uint256 purchaseLimit) external onlyOwner {
@@ -222,21 +192,6 @@ contract TreasuryManager is
         }
     }
 
-    /// @notice cancelOrder needs to be proxied because 0x expects makerAddress to be address(this)
-    /// @param order 0x order object
-    function cancelOrder(IExchangeV3.Order calldata order)
-        external
-        onlyManager
-    {
-        IExchangeV3.OrderInfo memory info = EXCHANGE.getOrderInfo(order);
-        EXCHANGE.cancelOrder(order);
-        emit OrderCancelled(
-            info.orderStatus,
-            info.orderHash,
-            info.orderTakerAssetFilledAmount
-        );
-    }
-
     /*** Manager Functionality  ***/
 
     /// @dev Will need to add a this method as a separate action behind the notional proxy
@@ -249,12 +204,12 @@ contract TreasuryManager is
         emit AssetsHarvested(currencies, amountsTransferred);
     }
 
-    function harvestCOMPFromNotional(address[] calldata ctokens)
+    function harvestAssetInterestFromNotional(uint16[] calldata currencies)
         external
         onlyManager
     {
-        uint256 amountTransferred = NOTIONAL.claimCOMPAndTransfer(ctokens);
-        emit COMPHarvested(ctokens, amountTransferred);
+        NOTIONAL.harvestAssetInterest(currencies);
+        emit AssetInterestHarvested(currencies);
     }
 
     /// @notice Updates the required cooldown time to invest
@@ -277,7 +232,7 @@ contract TreasuryManager is
     function executeTrade(Trade calldata trade, uint8 dexId) 
         external onlyManager returns (uint256 amountSold, uint256 amountBought) {
         require(trade.sellToken != address(WETH));
-        require(trade.buyToken == address(WETH));
+        require(trade.buyToken == address(WETH) || trade.buyToken == address(NOTE));
 
         (amountSold, amountBought) = trade._executeTrade(dexId, TRADING_MODULE);
         emit TradeExecuted(trade.sellToken, trade.buyToken, amountSold, amountBought);
@@ -364,14 +319,6 @@ contract TreasuryManager is
         // SpotPrice = (ETHBalance * 5 * 1e18) / (NOTEBalance * 125 / 100)
 
         return (balances[WETH_INDEX] * 5 * 1e18) / ((noteBal * 125) / 100);
-    }
-
-    function isValidSignature(bytes calldata data, bytes calldata signature)
-        external
-        view
-        returns (bytes4)
-    {
-        return _isValidSignature(data, signature, manager);
     }
 
     function _safe32(uint256 x) internal pure returns (uint32) {

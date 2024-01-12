@@ -3,7 +3,7 @@ pragma solidity =0.8.11;
 pragma abicoder v2;
 
 interface NotionalTreasuryAction {
-    function claimCOMPAndTransfer(address[] calldata ctokens) external returns (uint256);
+    function harvestAssetInterest(uint16[] calldata currencies) external;
 
     function transferReserveToTreasury(uint16[] calldata currencies)
         external

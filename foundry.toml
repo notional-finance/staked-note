@@ -1,6 +1,8 @@
 [profile.default]
 src = "contracts"
 libs = ["node_modules", "lib"]
+
+fs_permissions = [{access="read",path="./v2.mainnet.json"}]
 remappings = [
     "@openzeppelin=lib/openzeppelin-contracts",
     "@openzeppelin-upgradeable=lib/openzeppelin-contracts-upgradeable",

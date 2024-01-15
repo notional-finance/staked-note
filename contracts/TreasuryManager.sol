@@ -62,11 +62,6 @@ contract TreasuryManager is
     event AssetsHarvested(uint16[] currencies, uint256[] amounts);
     event AssetInterestHarvested(uint16[] currencies);
     event NOTEPurchaseLimitUpdated(uint256 purchaseLimit);
-    event OrderCancelled(
-        uint8 orderStatus,
-        bytes32 orderHash,
-        uint256 orderTakerAssetFilledAmount
-    );
     event TradeExecuted(
         address indexed sellToken,
         address indexed buyToken,
@@ -89,10 +84,22 @@ contract TreasuryManager is
         uint256 amountSold,
         uint256 poolClaimAmount
     );
+    error InvalidChain();
 
     /// @dev Restricted methods for the treasury manager
     modifier onlyManager() {
         require(msg.sender == manager, "Unauthorized");
+        _;
+    }
+
+    modifier onlyOnMainnet() {
+        uint chainId;
+        assembly {
+            chainId := chainid()
+        }
+        if (chainId != 1) {
+          revert InvalidChain();
+        }
         _;
     }
 
@@ -132,7 +139,7 @@ contract TreasuryManager is
         emit ManagementTransferred(address(0), _manager);
     }
 
-    function approveBalancer() external onlyOwner {
+    function approveBalancer() external onlyOwner onlyOnMainnet {
         NOTE.safeApprove(address(BALANCER_VAULT), type(uint256).max);
         IERC20(address(WETH)).safeApprove(
             address(BALANCER_VAULT),
@@ -140,7 +147,7 @@ contract TreasuryManager is
         );
     }
 
-    function setNOTEPurchaseLimit(uint256 purchaseLimit) external onlyOwner {
+    function setNOTEPurchaseLimit(uint256 purchaseLimit) external onlyOwner onlyOnMainnet {
         require(
             purchaseLimit <= NOTE_PURCHASE_LIMIT_PRECISION,
             "purchase limit is too high"
@@ -164,7 +171,7 @@ contract TreasuryManager is
         manager = newManager;
     }
 
-    function claimBAL() external onlyManager {
+    function claimBAL() external onlyManager onlyOnMainnet {
         sNOTE.claimBAL();
     }
 
@@ -246,7 +253,7 @@ contract TreasuryManager is
         uint256 wethAmount,
         uint256 noteAmount,
         uint256 minBPT
-    ) external onlyManager {
+    ) external onlyManager onlyOnMainnet {
         uint32 blockTime = _safe32(block.timestamp);
         require(
             lastInvestTimestamp + coolDownTimeInSeconds < blockTime,

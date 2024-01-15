@@ -45,4 +45,25 @@ contract RedeemNToken is Test {
         (bool success,) = address(treasuryManager).call(reinvestData);
         require(success, "Reinvest call should succeed");
     }
+
+    function test_approveBalancer_ShouldFailIfNotOnMainnet() public {
+        vm.chainId(11111);
+        vm.startPrank(treasuryManager.owner());
+        vm.expectRevert(TreasuryManager.InvalidChain.selector);
+        treasuryManager.approveBalancer();
+    }
+
+    function test_setNOTEPurchaseLimit_ShouldFailIfNotOnMainnet() public {
+        vm.chainId(11111);
+        vm.startPrank(treasuryManager.owner());
+        vm.expectRevert(TreasuryManager.InvalidChain.selector);
+        treasuryManager.setNOTEPurchaseLimit(1e8);
+    }
+
+    function test_investWETHAndNOTE_ShouldFailIfNotOnMainnet() public {
+        vm.chainId(11111);
+        vm.startPrank(treasuryManager.manager());
+        vm.expectRevert(TreasuryManager.InvalidChain.selector);
+        treasuryManager.investWETHAndNOTE(1e18, 1e18, 0);
+    }
 }

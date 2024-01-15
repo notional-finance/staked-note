@@ -9,7 +9,7 @@ import {TradeHandler} from "./utils/TradeHandler.sol";
 import {IVault, IAsset} from "../interfaces/balancer/IVault.sol";
 import {NotionalTreasuryAction} from "../interfaces/notional/NotionalTreasuryAction.sol";
 import {WETH9} from "../interfaces/WETH9.sol";
-import {ITradingModule, Trade} from "../interfaces/trading/ITradingModule.sol";
+import {ITradingModule, Trade, DexId} from "../interfaces/trading/ITradingModule.sol";
 import "../interfaces/notional/IStakedNote.sol";
 import "../interfaces/notional/IStrategyVault.sol";
 import "./utils/BalancerUtils.sol";
@@ -61,6 +61,7 @@ contract TreasuryManager is
 
     /// @notice Window for time weighted oracle price
     uint32 public priceOracleWindowInSeconds;
+    uint8 public noteBurnPercent;
 
     event ManagementTransferred(address prevManager, address newManager);
     event AssetsHarvested(uint16[] currencies, uint256[] amounts);
@@ -72,6 +73,7 @@ contract TreasuryManager is
         uint256 sellAmount,
         uint256 buyAmount
     );
+    event NoteBurned(uint256 amountBurned);
 
     /// @notice Emitted when cool down time is updated
     event InvestmentCoolDownUpdated(uint256 newCoolDownTimeSeconds);
@@ -175,6 +177,11 @@ contract TreasuryManager is
         manager = newManager;
     }
 
+    function setNoteBurnPercent(uint8 _noteBurnPercent) external onlyOwner {
+        require(_noteBurnPercent <= 100);
+        noteBurnPercent = _noteBurnPercent;
+    }
+
     function claimBAL() external onlyManager onlyOnMainnet {
         sNOTE.claimBAL();
     }
@@ -249,22 +256,30 @@ contract TreasuryManager is
         emit TradeExecuted(trade.sellToken, trade.buyToken, amountSold, amountBought);
     }
 
-    /// @notice Allows treasury manager to invest WETH and NOTE into the Balancer pool
-    /// @param wethAmount amount of WETH to transfer into the Balancer pool
-    /// @param noteAmount amount of NOTE to transfer into the Balancer pool
-    /// @param minBPT slippage parameter to prevent front running
-    function investWETHAndNOTE(
-        uint256 wethAmount,
-        uint256 noteAmount,
-        uint256 minBPT
-    ) external onlyManager onlyOnMainnet {
-        uint32 blockTime = _safe32(block.timestamp);
+    function _buyAndBurnNote(
+        Trade calldata trade,
+        uint256 wethForNOTEBurn
+    ) private returns(uint256) {
+        require(trade.sellToken == address(WETH));
+        require(trade.buyToken == address(NOTE));
+        require(trade.amount == wethForNOTEBurn);
         require(
-            lastInvestTimestamp + coolDownTimeInSeconds < blockTime,
-            "Investment Cooldown"
+            trade.tradeType == TradeType.EXACT_IN_SINGLE ||
+            trade.tradeType == TradeType.EXACT_IN_BATCH
         );
-        lastInvestTimestamp = blockTime;
 
+        (uint256 amountSold, uint256 amountBought) = 
+            trade._executeTrade(uint16(DexId.ZERO_EX), TRADING_MODULE);
+        emit TradeExecuted(trade.sellToken, trade.buyToken, amountSold, amountBought);
+
+        // burn the bought NOTE
+        NOTE.transfer(address(0), amountBought);
+        emit NoteBurned(amountBought);
+
+        return amountSold;
+    }
+
+    function _investInBalancerPool(uint256 wethAmount, uint256 noteAmount, uint256 minBPT) private {
         IAsset[] memory assets = new IAsset[](2);
         assets[WETH_INDEX] = IAsset(address(WETH));
         assets[NOTE_INDEX] = IAsset(address(NOTE));
@@ -308,6 +323,34 @@ contract TreasuryManager is
         require(noteSpotPrice <= maxPrice, "price impact is too high");
 
         emit AssetsInvested(wethAmount, noteAmount);
+    }
+
+    /// @notice Allows treasury manager to invest WETH and NOTE into the Balancer pool
+    /// @param wethAmount total amount of WETH for transfer into the Balancer pool and for buy and burn NOTE
+    /// @param noteAmount amount of NOTE to transfer into the Balancer pool
+    /// @param minBPT slippage parameter to prevent front running
+    /// @param trade data for NOTE buy and burn
+    function investWETHAndNOTE(
+        uint256 wethAmount,
+        uint256 noteAmount,
+        uint256 minBPT,
+        Trade calldata trade
+    ) external onlyManager onlyOnMainnet {
+        uint32 blockTime = _safe32(block.timestamp);
+        require(
+            lastInvestTimestamp + coolDownTimeInSeconds < blockTime,
+            "Investment Cooldown"
+        );
+        lastInvestTimestamp = blockTime;
+
+        uint256 wethForNOTEBurn = wethAmount * noteBurnPercent / 100;
+        if (0 < wethForNOTEBurn) {
+            _buyAndBurnNote(trade, wethForNOTEBurn);
+        }
+
+        uint256 wethForInvest = wethAmount - wethForNOTEBurn;
+        if (wethForInvest == 0 && noteAmount == 0) return;
+        _investInBalancerPool(wethAmount - wethForNOTEBurn, noteAmount, minBPT);
     }
 
     function _getNOTESpotPrice() public view returns (uint256) {

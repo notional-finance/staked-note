@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {TreasuryManager} from "../../contracts/TreasuryManager.sol";
 import {WETH9} from "../../interfaces/WETH9.sol";
 import {NotionalTreasuryAction} from "../../interfaces/notional/NotionalTreasuryAction.sol";
-import {ITradingModule} from "../../interfaces/trading/ITradingModule.sol";
+import {ITradingModule, Trade} from "../../interfaces/trading/ITradingModule.sol";
 import {IVault} from "../../interfaces/balancer/IVault.sol";
 
 interface NotionalProxy {
@@ -24,14 +24,13 @@ abstract contract TreasuryManagerTest is Test {
     function _fork() internal virtual;
 
     function _upgradeTreasuryManager() internal {
-        vm.prank(treasuryManager.owner());
+        vm.startPrank(treasuryManager.owner());
         TreasuryManager newTreasuryManger = new TreasuryManager(
             NotionalTreasuryAction(address(NOTIONAL)),
             WETH,
             TRADING_MODULE
         );
 
-        vm.prank(NOTIONAL.owner());
         treasuryManager.upgradeTo(address(newTreasuryManger));
     }
 
@@ -89,8 +88,9 @@ contract TreasuryManagerTestArbitrum is TreasuryManagerTest {
         _upgradeTreasuryManager();
 
         vm.startPrank(treasuryManager.manager());
+        Trade memory trade;
         vm.expectRevert(TreasuryManager.InvalidChain.selector);
-        treasuryManager.investWETHAndNOTE(1e18, 1e18, 0);
+        treasuryManager.investWETHAndNOTE(1e18, 1e18, 0, trade);
     }
 }
 

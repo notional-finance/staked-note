@@ -4,17 +4,17 @@ pragma solidity >=0.8.11;
 import "forge-std/Test.sol";
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {TreasuryManager} from "../contracts/TreasuryManager.sol";
-import {WETH9} from "../interfaces/WETH9.sol";
-import {NotionalTreasuryAction} from "../interfaces/notional/NotionalTreasuryAction.sol";
-import {ITradingModule} from "../interfaces/trading/ITradingModule.sol";
-import {IVault} from "../interfaces/balancer/IVault.sol";
+import {TreasuryManager} from "../../contracts/TreasuryManager.sol";
+import {WETH9} from "../../interfaces/WETH9.sol";
+import {NotionalTreasuryAction} from "../../interfaces/notional/NotionalTreasuryAction.sol";
+import {ITradingModule} from "../../interfaces/trading/ITradingModule.sol";
+import {IVault} from "../../interfaces/balancer/IVault.sol";
 
 interface NotionalProxy {
     function owner() external returns (address);
 }
 
-contract RedeemNToken is Test {
+contract ClaimVaultRewardTokensTest is Test {
     NotionalProxy constant NOTIONAL = NotionalProxy(0x1344A36A1B56144C3Bc62E7757377D288fDE0369);
     TreasuryManager treasuryManager = TreasuryManager(0x53144559C0d4a3304e2DD9dAfBD685247429216d);
 
@@ -46,24 +46,4 @@ contract RedeemNToken is Test {
         require(success, "Reinvest call should succeed");
     }
 
-    function test_approveBalancer_ShouldFailIfNotOnMainnet() public {
-        vm.chainId(11111);
-        vm.startPrank(treasuryManager.owner());
-        vm.expectRevert(TreasuryManager.InvalidChain.selector);
-        treasuryManager.approveBalancer();
-    }
-
-    function test_setNOTEPurchaseLimit_ShouldFailIfNotOnMainnet() public {
-        vm.chainId(11111);
-        vm.startPrank(treasuryManager.owner());
-        vm.expectRevert(TreasuryManager.InvalidChain.selector);
-        treasuryManager.setNOTEPurchaseLimit(1e8);
-    }
-
-    function test_investWETHAndNOTE_ShouldFailIfNotOnMainnet() public {
-        vm.chainId(11111);
-        vm.startPrank(treasuryManager.manager());
-        vm.expectRevert(TreasuryManager.InvalidChain.selector);
-        treasuryManager.investWETHAndNOTE(1e18, 1e18, 0);
-    }
 }

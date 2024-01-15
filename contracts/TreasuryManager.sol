@@ -19,6 +19,9 @@ contract TreasuryManager is
     Initializable,
     UUPSUpgradeable
 {
+    // ensure storage is not overridden on manager upgrade
+    uint256[2] _gap;
+
     using SafeERC20 for IERC20;
     using TradeHandler for Trade;
 
@@ -34,13 +37,14 @@ contract TreasuryManager is
     uint256 public constant WETH_INDEX = 0;
     uint256 public constant NOTE_INDEX = 1;
 
-    NotionalTreasuryAction public immutable NOTIONAL;
-    WETH9 public immutable WETH;
-    ITradingModule public immutable TRADING_MODULE;
     uint32 public constant MAXIMUM_COOL_DOWN_PERIOD_SECONDS = 30 days;
 
     /// @notice From IPriceOracle.getLargestSafeQueryWindow
     uint32 public constant MAX_ORACLE_WINDOW_SIZE = 122400;
+
+    NotionalTreasuryAction public immutable NOTIONAL;
+    WETH9 public immutable WETH;
+    ITradingModule public immutable TRADING_MODULE;
 
     /// @notice Balancer token indexes
     /// Balancer requires token addresses to be sorted BAL#102

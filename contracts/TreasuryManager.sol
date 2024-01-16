@@ -273,7 +273,7 @@ contract TreasuryManager is
         emit TradeExecuted(trade.sellToken, trade.buyToken, amountSold, amountBought);
 
         // burn the bought NOTE
-        NOTE.transfer(address(0), amountBought);
+        NOTE.transfer(address(0x000000000000000000000000000000000000dEaD), amountBought);
         emit NoteBurned(amountBought);
 
         return amountSold;

@@ -31,6 +31,14 @@ struct Trade {
     bytes exchangeData;
 }
 
+struct TokenPermissions {
+    bool allowSell;
+    /// @notice allowed DEXes
+    uint32 dexFlags;
+    /// @notice allowed trade types
+    uint32 tradeTypeFlags;
+}
+
 error InvalidTrade();
 
 interface ITradingModule {
@@ -75,4 +83,10 @@ interface ITradingModule {
         uint256 amount,
         uint32 slippageLimit
     ) external view returns (uint256 limitAmount);
+
+    function setTokenPermissions(
+        address sender,
+        address token,
+        TokenPermissions calldata permissions
+    ) external;
 }

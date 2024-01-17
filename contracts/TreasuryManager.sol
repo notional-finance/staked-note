@@ -99,11 +99,7 @@ contract TreasuryManager is
     }
 
     modifier onlyOnMainnet() {
-        uint chainId;
-        assembly {
-            chainId := chainid()
-        }
-        if (chainId != 1) {
+        if (block.chainid != 1) {
           revert InvalidChain();
         }
         _;
@@ -114,11 +110,7 @@ contract TreasuryManager is
         WETH9 _weth,
         ITradingModule _tradingModule
     ) initializer {
-        uint chainId;
-        assembly {
-            chainId := chainid()
-        }
-        if (chainId == 1) {
+        if (block.chainid == 1) {
             // Balancer will revert if pool is not found
             (address poolAddress, /* */) = BALANCER_VAULT.getPool(NOTE_ETH_POOL_ID);
             require(poolAddress == address(BALANCER_POOL_TOKEN), "1");

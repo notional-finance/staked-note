@@ -2,6 +2,7 @@
 pragma solidity =0.8.11;
 pragma abicoder v2;
 
+import {console2 as console} from "forge-std/console2.sol";
 import {Script} from "forge-std/Script.sol";
 
 import {TreasuryManager} from "../contracts/TreasuryManager.sol";
@@ -19,13 +20,11 @@ contract DeployTreasuryAction is Script {
     function run() external {
         configFiles[1] = "v2.mainnet.json";
         configFiles[5] = "v2.goerli.json";
+        configFiles[42161] = "v3.arbitrum-one.json";
 
-        uint256 chainId;
-        assembly {
-            chainId := chainid()
-        }
+        console.log("Deploying to chainid: ", block.chainid);
 
-        string memory json = vm.readFile(configFiles[chainId]);
+        string memory json = vm.readFile(configFiles[block.chainid]);
 
         NotionalProxy NOTIONAL = NotionalProxy(address(vm.parseJsonAddress(json, ".notional")));
         ITradingModule tradingModule = ITradingModule(vm.parseJsonAddress(json, ".tradingModule"));
@@ -44,4 +43,3 @@ contract DeployTreasuryAction is Script {
         vm.stopBroadcast();
     }
 }
-

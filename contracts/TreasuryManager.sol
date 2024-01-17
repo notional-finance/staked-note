@@ -5,47 +5,49 @@ import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {BoringOwnable} from "./utils/BoringOwnable.sol";
-import {EIP1271Wallet} from "./utils/EIP1271Wallet.sol";
 import {TradeHandler} from "./utils/TradeHandler.sol";
 import {IVault, IAsset} from "../interfaces/balancer/IVault.sol";
 import {NotionalTreasuryAction} from "../interfaces/notional/NotionalTreasuryAction.sol";
 import {WETH9} from "../interfaces/WETH9.sol";
-import {ITradingModule, Trade} from "../interfaces/trading/ITradingModule.sol";
-import "../interfaces/0x/IExchangeV3.sol";
+import {ITradingModule, Trade, DexId} from "../interfaces/trading/ITradingModule.sol";
 import "../interfaces/notional/IStakedNote.sol";
 import "../interfaces/notional/IStrategyVault.sol";
 import "./utils/BalancerUtils.sol";
 
 contract TreasuryManager is
-    EIP1271Wallet,
     BoringOwnable,
     Initializable,
     UUPSUpgradeable
 {
+    // ensure storage is not overridden on manager upgrade
+    uint256[2] _gap;
+
     using SafeERC20 for IERC20;
     using TradeHandler for Trade;
 
     /// @notice precision used to limit the amount of NOTE price impact (1e8 = 100%)
     uint256 internal constant NOTE_PURCHASE_LIMIT_PRECISION = 1e8;
 
-    NotionalTreasuryAction public immutable NOTIONAL;
-    IERC20 public immutable NOTE;
-    IVault public immutable BALANCER_VAULT;
-    ERC20 public immutable BALANCER_POOL_TOKEN;
-    IStakedNote public immutable sNOTE;
-    bytes32 public immutable NOTE_ETH_POOL_ID;
-    address public immutable ASSET_PROXY;
-    IExchangeV3 public immutable EXCHANGE;
-    ITradingModule public immutable TRADING_MODULE;
+    // following constants are relevant only for mainnet
+    IERC20 public constant NOTE = IERC20(0xCFEAead4947f0705A14ec42aC3D44129E1Ef3eD5);
+    IStakedNote public constant sNOTE = IStakedNote(0x38DE42F4BA8a35056b33A746A6b45bE9B1c3B9d2);
+    bytes32 public constant NOTE_ETH_POOL_ID = 0x5122e01d819e58bb2e22528c0d68d310f0aa6fd7000200000000000000000163;
+    ERC20 public constant BALANCER_POOL_TOKEN = ERC20(0x5122E01D819E58BB2E22528c0D68D310f0AA6FD7);
+    IVault public constant BALANCER_VAULT = IVault(0xBA12222222228d8Ba445958a75a0704d566BF2C8);
+    uint256 public constant WETH_INDEX = 0;
+    uint256 public constant NOTE_INDEX = 1;
+
     uint32 public constant MAXIMUM_COOL_DOWN_PERIOD_SECONDS = 30 days;
-    
+
     /// @notice From IPriceOracle.getLargestSafeQueryWindow
     uint32 public constant MAX_ORACLE_WINDOW_SIZE = 122400;
 
+    NotionalTreasuryAction public immutable NOTIONAL;
+    WETH9 public immutable WETH;
+    ITradingModule public immutable TRADING_MODULE;
+
     /// @notice Balancer token indexes
     /// Balancer requires token addresses to be sorted BAL#102
-    uint256 public immutable WETH_INDEX;
-    uint256 public immutable NOTE_INDEX;
 
     address public manager;
 
@@ -59,22 +61,19 @@ contract TreasuryManager is
 
     /// @notice Window for time weighted oracle price
     uint32 public priceOracleWindowInSeconds;
+    uint8 public noteBurnPercent;
 
     event ManagementTransferred(address prevManager, address newManager);
     event AssetsHarvested(uint16[] currencies, uint256[] amounts);
-    event COMPHarvested(address[] ctokens, uint256 amount);
+    event AssetInterestHarvested(uint16[] currencies);
     event NOTEPurchaseLimitUpdated(uint256 purchaseLimit);
-    event OrderCancelled(
-        uint8 orderStatus,
-        bytes32 orderHash,
-        uint256 orderTakerAssetFilledAmount
-    );
     event TradeExecuted(
         address indexed sellToken,
         address indexed buyToken,
         uint256 sellAmount,
         uint256 buyAmount
     );
+    event NoteBurned(uint256 amountBurned);
 
     /// @notice Emitted when cool down time is updated
     event InvestmentCoolDownUpdated(uint256 newCoolDownTimeSeconds);
@@ -91,6 +90,7 @@ contract TreasuryManager is
         uint256 amountSold,
         uint256 poolClaimAmount
     );
+    error InvalidChain();
 
     /// @dev Restricted methods for the treasury manager
     modifier onlyManager() {
@@ -98,34 +98,30 @@ contract TreasuryManager is
         _;
     }
 
+    modifier onlyOnMainnet() {
+        if (block.chainid != 1) {
+          revert InvalidChain();
+        }
+        _;
+    }
+
     constructor(
         NotionalTreasuryAction _notional,
         WETH9 _weth,
-        IERC20 _note,
-        ITradingModule _tradingModule,
-        IVault _balancerVault
-        // bytes32 _noteETHPoolId,
-        // IStakedNote _sNOTE,
-        // address _assetProxy,
-        // IExchangeV3 _exchange,
-        // uint256 _wethIndex,
-        // uint256 _noteIndex,
-    ) EIP1271Wallet(_weth) initializer {
-        // Balancer will revert if pool is not found
-        // prettier-ignore
-        // (address poolAddress, /* */) = _balancerVault.getPool(_noteETHPoolId);
+        ITradingModule _tradingModule
+    ) initializer {
+        if (block.chainid == 1) {
+            // Balancer will revert if pool is not found
+            (address poolAddress, /* */) = BALANCER_VAULT.getPool(NOTE_ETH_POOL_ID);
+            require(poolAddress == address(BALANCER_POOL_TOKEN), "1");
 
-        WETH_INDEX = 0; // _wethIndex;
-        NOTE_INDEX = 0; // _noteIndex;
+            (address[] memory poolTokens,,) = BALANCER_VAULT.getPoolTokens(NOTE_ETH_POOL_ID);
+            require(poolTokens[WETH_INDEX] == address(_weth), "2");
+            require(poolTokens[NOTE_INDEX] == address(NOTE), "3");
+        }
 
         NOTIONAL = NotionalTreasuryAction(_notional);
-        sNOTE = IStakedNote(address(0));
-        NOTE = _note;
-        BALANCER_VAULT = _balancerVault;
-        NOTE_ETH_POOL_ID = bytes32(0); // _noteETHPoolId;
-        ASSET_PROXY = address(0);
-        BALANCER_POOL_TOKEN = ERC20(address(0));
-        EXCHANGE = IExchangeV3(address(0));
+        WETH = _weth;
         TRADING_MODULE = _tradingModule;
     }
 
@@ -141,12 +137,7 @@ contract TreasuryManager is
         emit ManagementTransferred(address(0), _manager);
     }
 
-    function approveToken(address token, uint256 amount) external onlyOwner {
-        IERC20(token).safeApprove(ASSET_PROXY, 0);
-        IERC20(token).safeApprove(ASSET_PROXY, amount);
-    }
-
-    function approveBalancer() external onlyOwner {
+    function approveBalancer() external onlyOwner onlyOnMainnet {
         NOTE.safeApprove(address(BALANCER_VAULT), type(uint256).max);
         IERC20(address(WETH)).safeApprove(
             address(BALANCER_VAULT),
@@ -154,23 +145,7 @@ contract TreasuryManager is
         );
     }
 
-    function setPriceOracle(address tokenAddress, address oracleAddress)
-        external
-        onlyOwner
-    {
-        /// @dev oracleAddress validated inside _setPriceOracle
-        _setPriceOracle(tokenAddress, oracleAddress);
-    }
-
-    function setSlippageLimit(address tokenAddress, uint256 slippageLimit)
-        external
-        onlyOwner
-    {
-        /// @dev slippageLimit validated inside _setSlippageLimit
-        _setSlippageLimit(tokenAddress, slippageLimit);
-    }
-
-    function setNOTEPurchaseLimit(uint256 purchaseLimit) external onlyOwner {
+    function setNOTEPurchaseLimit(uint256 purchaseLimit) external onlyOwner onlyOnMainnet {
         require(
             purchaseLimit <= NOTE_PURCHASE_LIMIT_PRECISION,
             "purchase limit is too high"
@@ -194,56 +169,9 @@ contract TreasuryManager is
         manager = newManager;
     }
 
-    function claimBAL() external onlyManager {
-        sNOTE.claimBAL();
-    }
-
-    function claimVaultRewardTokens(address vault) external onlyManager {
-        IStrategyVault(vault).claimRewardTokens();
-    }
-
-    function reinvestVaultReward(
-        address vault,
-        IStrategyVault.SingleSidedRewardTradeParams[] calldata trades,
-        uint256 minPoolClaim
-    ) external onlyManager returns (address rewardToken, uint256 amountSold, uint256 poolClaimAmount) {
-        (rewardToken, amountSold, poolClaimAmount) = IStrategyVault(vault).reinvestReward(trades, minPoolClaim);
-        emit VaultRewardReinvested(vault, rewardToken, amountSold, poolClaimAmount);
-    }
-    
-    /// @notice cancelOrder needs to be proxied because 0x expects makerAddress to be address(this)
-    /// @param order 0x order object
-    function cancelOrder(IExchangeV3.Order calldata order)
-        external
-        onlyManager
-    {
-        IExchangeV3.OrderInfo memory info = EXCHANGE.getOrderInfo(order);
-        EXCHANGE.cancelOrder(order);
-        emit OrderCancelled(
-            info.orderStatus,
-            info.orderHash,
-            info.orderTakerAssetFilledAmount
-        );
-    }
-
-    /*** Manager Functionality  ***/
-
-    /// @dev Will need to add a this method as a separate action behind the notional proxy
-    function harvestAssetsFromNotional(uint16[] calldata currencies)
-        external
-        onlyManager
-    {
-        uint256[] memory amountsTransferred = NOTIONAL
-            .transferReserveToTreasury(currencies);
-        emit AssetsHarvested(currencies, amountsTransferred);
-    }
-
-    function harvestCOMPFromNotional(address[] calldata ctokens)
-        external
-        onlyManager
-    {
-        uint256 amountTransferred = NOTIONAL.claimCOMPAndTransfer(ctokens);
-        emit COMPHarvested(ctokens, amountTransferred);
+    function setNoteBurnPercent(uint8 _noteBurnPercent) external onlyOwner {
+        require(_noteBurnPercent <= 100);
+        noteBurnPercent = _noteBurnPercent;
     }
 
     /// @notice Updates the required cooldown time to invest
@@ -263,24 +191,78 @@ contract TreasuryManager is
         emit PriceOracleWindowUpdated(_priceOracleWindowInSeconds);
     }
 
-    function executeTrade(Trade calldata trade, uint8 dexId) 
+    function _authorizeUpgrade(
+        address /* newImplementation */
+    ) internal override onlyOwner {}
+
+    function claimBAL() external onlyManager onlyOnMainnet {
+        sNOTE.claimBAL();
+    }
+
+    function claimVaultRewardTokens(address vault) external onlyManager {
+        IStrategyVault(vault).claimRewardTokens();
+    }
+
+    function reinvestVaultReward(
+        address vault,
+        IStrategyVault.SingleSidedRewardTradeParams[][] calldata tradesPerRewardToken,
+        uint256[] calldata minPoolClaims
+    ) external onlyManager returns (
+        address[] memory rewardTokens,
+        uint256[] memory amountsSold,
+        uint256[] memory poolClaimAmounts
+    ) {
+        rewardTokens = new address[](tradesPerRewardToken.length);
+        amountsSold = new uint256[](tradesPerRewardToken.length);
+        poolClaimAmounts = new uint256[](tradesPerRewardToken.length);
+
+        for (uint256 i = 0; i < tradesPerRewardToken.length; i++) {
+          (rewardTokens[i], amountsSold[i], poolClaimAmounts[i]) =
+            IStrategyVault(vault).reinvestReward(tradesPerRewardToken[i], minPoolClaims[i]);
+          emit VaultRewardReinvested(vault, rewardTokens[i], amountsSold[i], poolClaimAmounts[i]);
+        }
+    }
+
+    /*** Manager Functionality  ***/
+
+    /// @dev Will need to add a this method as a separate action behind the notional proxy
+    function harvestAssetsFromNotional(uint16[] calldata currencies)
+        external
+        onlyManager
+    {
+        uint256[] memory amountsTransferred = NOTIONAL
+            .transferReserveToTreasury(currencies);
+        emit AssetsHarvested(currencies, amountsTransferred);
+    }
+
+    function harvestAssetInterestFromNotional(uint16[] calldata currencies)
+        external
+        onlyManager
+    {
+        NOTIONAL.harvestAssetInterest(currencies);
+        emit AssetInterestHarvested(currencies);
+    }
+
+    function executeTrade(Trade calldata trade, uint8 dexId)
         external onlyManager returns (uint256 amountSold, uint256 amountBought) {
         require(trade.sellToken != address(WETH));
-        require(trade.buyToken == address(WETH));
+        require(trade.buyToken == address(WETH) || trade.buyToken == address(NOTE));
 
         (amountSold, amountBought) = trade._executeTrade(dexId, TRADING_MODULE);
         emit TradeExecuted(trade.sellToken, trade.buyToken, amountSold, amountBought);
     }
 
     /// @notice Allows treasury manager to invest WETH and NOTE into the Balancer pool
-    /// @param wethAmount amount of WETH to transfer into the Balancer pool
+    /// @param wethAmount total amount of WETH for transfer into the Balancer pool and for buy and burn NOTE
     /// @param noteAmount amount of NOTE to transfer into the Balancer pool
     /// @param minBPT slippage parameter to prevent front running
+    /// @param trade data for NOTE buy and burn
     function investWETHAndNOTE(
         uint256 wethAmount,
         uint256 noteAmount,
-        uint256 minBPT
-    ) external onlyManager {
+        uint256 minBPT,
+        Trade calldata trade
+    ) external onlyManager onlyOnMainnet {
         uint32 blockTime = _safe32(block.timestamp);
         require(
             lastInvestTimestamp + coolDownTimeInSeconds < blockTime,
@@ -288,6 +270,40 @@ contract TreasuryManager is
         );
         lastInvestTimestamp = blockTime;
 
+        uint256 wethForNOTEBurn = wethAmount * noteBurnPercent / 100;
+        if (0 < wethForNOTEBurn) {
+            _buyAndBurnNote(trade, wethForNOTEBurn);
+        }
+
+        uint256 wethForInvest = wethAmount - wethForNOTEBurn;
+        if (wethForInvest == 0 && noteAmount == 0) return;
+        _investInBalancerPool(wethAmount - wethForNOTEBurn, noteAmount, minBPT);
+    }
+
+    function _buyAndBurnNote(
+        Trade calldata trade,
+        uint256 wethForNOTEBurn
+    ) private returns(uint256) {
+        require(trade.sellToken == address(WETH));
+        require(trade.buyToken == address(NOTE));
+        require(trade.amount == wethForNOTEBurn);
+        require(
+            trade.tradeType == TradeType.EXACT_IN_SINGLE ||
+            trade.tradeType == TradeType.EXACT_IN_BATCH
+        );
+
+        (uint256 amountSold, uint256 amountBought) = 
+            trade._executeTrade(uint16(DexId.ZERO_EX), TRADING_MODULE);
+        emit TradeExecuted(trade.sellToken, trade.buyToken, amountSold, amountBought);
+
+        // burn the bought NOTE
+        NOTE.transfer(address(0x000000000000000000000000000000000000dEaD), amountBought);
+        emit NoteBurned(amountBought);
+
+        return amountSold;
+    }
+
+    function _investInBalancerPool(uint256 wethAmount, uint256 noteAmount, uint256 minBPT) private {
         IAsset[] memory assets = new IAsset[](2);
         assets[WETH_INDEX] = IAsset(address(WETH));
         assets[NOTE_INDEX] = IAsset(address(NOTE));
@@ -355,20 +371,8 @@ contract TreasuryManager is
         return (balances[WETH_INDEX] * 5 * 1e18) / ((noteBal * 125) / 100);
     }
 
-    function isValidSignature(bytes calldata data, bytes calldata signature)
-        external
-        view
-        returns (bytes4)
-    {
-        return _isValidSignature(data, signature, manager);
-    }
-
     function _safe32(uint256 x) internal pure returns (uint32) {
         require(x <= type(uint32).max);
         return uint32(x);
     }
-
-    function _authorizeUpgrade(
-        address /* newImplementation */
-    ) internal override onlyOwner {}
 }

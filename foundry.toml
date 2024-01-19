@@ -2,6 +2,7 @@
 src = "contracts"
 libs = ["node_modules", "lib"]
 
+solc="0.8.11"
 fs_permissions = [{access="read",path="./v2.mainnet.json"}, {access="read",path="./v3.arbitrum-one.json"}]
 remappings = [
     "@openzeppelin=lib/openzeppelin-contracts",

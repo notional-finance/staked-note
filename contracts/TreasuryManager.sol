@@ -262,7 +262,7 @@ contract TreasuryManager is
         uint256 noteAmount,
         uint256 minBPT,
         Trade calldata trade
-    ) external onlyManager onlyOnMainnet {
+    ) external onlyManager onlyOnMainnet returns (uint256 receivedBPT, uint256 burnedNote) {
         uint32 blockTime = _safe32(block.timestamp);
         require(
             lastInvestTimestamp + coolDownTimeInSeconds < blockTime,
@@ -272,18 +272,19 @@ contract TreasuryManager is
 
         uint256 wethForNOTEBurn = wethAmount * noteBurnPercent / 100;
         if (0 < wethForNOTEBurn) {
-            _buyAndBurnNote(trade, wethForNOTEBurn);
+            burnedNote = _buyAndBurnNote(trade, wethForNOTEBurn);
         }
 
         uint256 wethForInvest = wethAmount - wethForNOTEBurn;
-        if (wethForInvest == 0 && noteAmount == 0) return;
-        _investInBalancerPool(wethAmount - wethForNOTEBurn, noteAmount, minBPT);
+        if (wethForInvest != 0 || noteAmount != 0)  {
+            receivedBPT = _investInBalancerPool(wethAmount - wethForNOTEBurn, noteAmount, minBPT);
+        }
     }
 
     function _buyAndBurnNote(
         Trade calldata trade,
         uint256 wethForNOTEBurn
-    ) private returns(uint256) {
+    ) private returns(uint256 burnedNote) {
         require(trade.sellToken == address(WETH));
         require(trade.buyToken == address(NOTE));
         require(trade.amount == wethForNOTEBurn);
@@ -300,10 +301,14 @@ contract TreasuryManager is
         NOTE.transfer(address(0x000000000000000000000000000000000000dEaD), amountBought);
         emit NoteBurned(amountBought);
 
-        return amountSold;
+        return amountBought;
     }
 
-    function _investInBalancerPool(uint256 wethAmount, uint256 noteAmount, uint256 minBPT) private {
+    function _investInBalancerPool(
+        uint256 wethAmount,
+        uint256 noteAmount,
+        uint256 minBPT
+    ) private returns (uint256 receivedBPT) {
         IAsset[] memory assets = new IAsset[](2);
         assets[WETH_INDEX] = IAsset(address(WETH));
         assets[NOTE_INDEX] = IAsset(address(NOTE));
@@ -333,6 +338,7 @@ contract TreasuryManager is
                 false // Don't use internal balances
             )
         );
+        receivedBPT = BALANCER_POOL_TOKEN.balanceOf(address(sNOTE));
 
         // Make sure the donated BPT is staked
         sNOTE.stakeAll();

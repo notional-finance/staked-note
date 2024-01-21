@@ -293,7 +293,7 @@ contract TreasuryManager is
             trade.tradeType == TradeType.EXACT_IN_BATCH
         );
 
-        (uint256 amountSold, uint256 amountBought) = 
+        (uint256 amountSold, uint256 amountBought) =
             trade._executeTrade(uint16(DexId.ZERO_EX), TRADING_MODULE);
         emit TradeExecuted(trade.sellToken, trade.buyToken, amountSold, amountBought);
 
@@ -323,6 +323,7 @@ contract TreasuryManager is
             uint256(priceOracleWindowInSeconds)
         );
 
+        uint256 prevBPTBalance = BALANCER_POOL_TOKEN.balanceOf(address(sNOTE));
         BALANCER_VAULT.joinPool(
             NOTE_ETH_POOL_ID,
             address(this),
@@ -338,7 +339,7 @@ contract TreasuryManager is
                 false // Don't use internal balances
             )
         );
-        receivedBPT = BALANCER_POOL_TOKEN.balanceOf(address(sNOTE));
+        receivedBPT = BALANCER_POOL_TOKEN.balanceOf(address(sNOTE)) - prevBPTBalance;
 
         // Make sure the donated BPT is staked
         sNOTE.stakeAll();

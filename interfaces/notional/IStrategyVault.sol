@@ -2,65 +2,37 @@
 pragma solidity >=0.7.6;
 
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {TradeType} from "../trading/ITradingModule.sol";
 
 interface IStrategyVault {
-    struct ReinvestRewardParams {
-        bytes tradeData;
-        uint256 minPoolClaim;
+    /// @notice Parameters for trades
+    struct TradeParams {
+        /// @notice DEX ID
+        uint16 dexId;
+        /// @notice Trade type (i.e. Single/Batch)
+        TradeType tradeType;
+        /// @notice For dynamic trades, this field specifies the slippage percentage relative to
+        /// the oracle price. For static trades, this field specifies the slippage limit amount.
+        uint256 oracleSlippagePercentOrLimit;
+        /// @notice DEX specific data
+        bytes exchangeData;
     }
 
-    function decimals() external view returns (uint8);
-    function name() external view returns (string memory);
-    function strategy() external view returns (bytes4 strategyId);
+    /// @notice Single-sided reinvestment trading parameters
+    struct SingleSidedRewardTradeParams {
+        /// @notice Address of the token to sell (typically one of the reward tokens)
+        address sellToken;
+        /// @notice Address of the token to buy (typically one of the pool tokens)
+        address buyToken;
+        /// @notice Amount of tokens to sell
+        uint256 amount;
+        /// @notice Trade params
+        TradeParams tradeParams;
+    }
 
-    // Tells a vault to deposit some amount of tokens from Notional and mint strategy tokens with it.
-    function depositFromNotional(
-        address account,
-        uint256 depositAmount,
-        uint256 maturity,
-        bytes calldata data
-    ) external payable returns (uint256 strategyTokensMinted);
-
-    // Tells a vault to redeem some amount of strategy tokens from Notional and transfer the resulting asset cash
-    function redeemFromNotional(
-        address account,
-        address receiver,
-        uint256 strategyTokens,
-        uint256 maturity,
-        uint256 underlyingToRepayDebt,
-        bytes calldata data
-    ) external returns (uint256 transferToReceiver);
-
-    function convertStrategyToUnderlying(
-        address account,
-        uint256 strategyTokens,
-        uint256 maturity
-    ) external view returns (int256 underlyingValue);
-
-    function repaySecondaryBorrowCallback(
-        address token,
-        uint256 underlyingRequired,
-        bytes calldata data
-    ) external returns (bytes memory returnData);
-
-    function deleverageAccount(
-        address account,
-        address vault,
-        address liquidator,
-        uint256 depositAmountExternal,
-        bool transferSharesToLiquidator,
-        bytes calldata redeemData
-    ) external returns (uint256 profitFromLiquidation);
-
-    function convertPoolClaimToStrategyTokens(uint256 poolClaim)
-        external view returns (uint256 strategyTokenAmount);
-   
-    function claimRewardTokens() external returns (IERC20[] memory rewardTokens, uint256[] memory claimedBalances);
-
-    function reinvestReward(ReinvestRewardParams calldata params) external returns (
-        address rewardToken,
-        uint256 primaryAmount,
-        uint256 secondaryAmount,
-        uint256 poolClaimAmount
-    );
+    function claimRewardTokens() external;
+    function reinvestReward(
+        SingleSidedRewardTradeParams[] calldata trades,
+        uint256 minPoolClaim
+    ) external returns (address rewardToken, uint256 amountSold, uint256 poolClaimAmount);
 }

@@ -5,3 +5,8 @@ build/
 reports/
 node_modules/
 cache/
+venv
+out
+.env
+tags
+broadcast

@@ -26,6 +26,14 @@ TreasuryManagerConfig = {
         "exchange": "0x61935cbdd02287b511119ddb11aeb42f1593b7ef",
         "wethIndex": 0,
         "noteIndex": 1        
+    },
+    "arbitrum": {
+        "vault": "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
+        "weth": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+        "assetProxy": "0x0000000000000000000000000000000000000000",
+        "exchange": "0x0000000000000000000000000000000000000000",
+        "wethIndex": 0,
+        "noteIndex": 1
     }
 }
 SECONDS_IN_DAY = 86400

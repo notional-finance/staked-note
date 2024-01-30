@@ -14,7 +14,7 @@ interface NotionalProxy {
     function owner() external returns (address);
 }
 
-contract DeployTreasuryAction is Script {
+contract DeployTreasuryManager is Script {
     mapping(uint256 => string) configFiles;
 
     function run() external {
@@ -31,7 +31,11 @@ contract DeployTreasuryAction is Script {
         WETH9 WETH = WETH9(vm.parseJsonAddress(json, ".tokens.WETH.address"));
         TreasuryManager treasuryManager = TreasuryManager(address(vm.parseJsonAddress(json, ".staking.treasuryManager")));
 
-        vm.startBroadcast(NOTIONAL.owner());
+        address owner = treasuryManager.owner();
+        address manager = treasuryManager.manager();
+        uint32 coolDownTimeInSeconds = treasuryManager.coolDownTimeInSeconds();
+
+        vm.startBroadcast();
 
         TreasuryManager newTreasuryManger = new TreasuryManager(
             NotionalTreasuryAction(address(NOTIONAL)),
@@ -39,7 +43,16 @@ contract DeployTreasuryAction is Script {
             tradingModule
         );
 
-        treasuryManager.upgradeTo(address(newTreasuryManger));
+        treasuryManager.upgradeToAndCall(
+            address(newTreasuryManger),
+            abi.encodeWithSelector(TreasuryManager.initialize.selector, owner, manager, coolDownTimeInSeconds)
+        );
+
+        treasuryManager.initialize(
+            owner,
+            manager,
+            coolDownTimeInSeconds
+        );
         vm.stopBroadcast();
     }
 }

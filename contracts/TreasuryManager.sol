@@ -245,7 +245,7 @@ contract TreasuryManager is
 
     function executeTrade(Trade calldata trade, uint8 dexId)
         external onlyManager returns (uint256 amountSold, uint256 amountBought) {
-        require(trade.sellToken != address(WETH));
+        require(trade.sellToken != address(WETH) && trade.sellToken != address(NOTE));
         require(trade.buyToken == address(WETH) || trade.buyToken == address(NOTE));
 
         (amountSold, amountBought) = trade._executeTrade(dexId, TRADING_MODULE);

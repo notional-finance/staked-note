@@ -262,7 +262,7 @@ contract TreasuryManager is
         uint256 noteAmount,
         uint256 minBPT,
         Trade calldata trade
-    ) external onlyManager onlyOnMainnet {
+    ) external onlyManager onlyOnMainnet returns (uint256 receivedBPT, uint256 burnedNote) {
         uint32 blockTime = _safe32(block.timestamp);
         require(
             lastInvestTimestamp + coolDownTimeInSeconds < blockTime,
@@ -272,18 +272,19 @@ contract TreasuryManager is
 
         uint256 wethForNOTEBurn = wethAmount * noteBurnPercent / 100;
         if (0 < wethForNOTEBurn) {
-            _buyAndBurnNote(trade, wethForNOTEBurn);
+            burnedNote = _buyAndBurnNote(trade, wethForNOTEBurn);
         }
 
         uint256 wethForInvest = wethAmount - wethForNOTEBurn;
-        if (wethForInvest == 0 && noteAmount == 0) return;
-        _investInBalancerPool(wethAmount - wethForNOTEBurn, noteAmount, minBPT);
+        if (wethForInvest != 0 || noteAmount != 0)  {
+            receivedBPT = _investInBalancerPool(wethAmount - wethForNOTEBurn, noteAmount, minBPT);
+        }
     }
 
     function _buyAndBurnNote(
         Trade calldata trade,
         uint256 wethForNOTEBurn
-    ) private returns(uint256) {
+    ) private returns(uint256 burnedNote) {
         require(trade.sellToken == address(WETH));
         require(trade.buyToken == address(NOTE));
         require(trade.amount == wethForNOTEBurn);
@@ -292,7 +293,7 @@ contract TreasuryManager is
             trade.tradeType == TradeType.EXACT_IN_BATCH
         );
 
-        (uint256 amountSold, uint256 amountBought) = 
+        (uint256 amountSold, uint256 amountBought) =
             trade._executeTrade(uint16(DexId.ZERO_EX), TRADING_MODULE);
         emit TradeExecuted(trade.sellToken, trade.buyToken, amountSold, amountBought);
 
@@ -300,10 +301,14 @@ contract TreasuryManager is
         NOTE.transfer(address(0x000000000000000000000000000000000000dEaD), amountBought);
         emit NoteBurned(amountBought);
 
-        return amountSold;
+        return amountBought;
     }
 
-    function _investInBalancerPool(uint256 wethAmount, uint256 noteAmount, uint256 minBPT) private {
+    function _investInBalancerPool(
+        uint256 wethAmount,
+        uint256 noteAmount,
+        uint256 minBPT
+    ) private returns (uint256 receivedBPT) {
         IAsset[] memory assets = new IAsset[](2);
         assets[WETH_INDEX] = IAsset(address(WETH));
         assets[NOTE_INDEX] = IAsset(address(NOTE));
@@ -318,6 +323,7 @@ contract TreasuryManager is
             uint256(priceOracleWindowInSeconds)
         );
 
+        uint256 prevBPTBalance = BALANCER_POOL_TOKEN.balanceOf(address(sNOTE));
         BALANCER_VAULT.joinPool(
             NOTE_ETH_POOL_ID,
             address(this),
@@ -333,6 +339,7 @@ contract TreasuryManager is
                 false // Don't use internal balances
             )
         );
+        receivedBPT = BALANCER_POOL_TOKEN.balanceOf(address(sNOTE)) - prevBPTBalance;
 
         // Make sure the donated BPT is staked
         sNOTE.stakeAll();

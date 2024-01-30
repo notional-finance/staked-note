@@ -24,6 +24,10 @@ abstract contract TreasuryManagerTest is Test {
     function _fork() internal virtual;
 
     function _upgradeTreasuryManager() internal {
+        address manager = treasuryManager.manager();
+        uint32 coolDownTimeInSeconds = treasuryManager.coolDownTimeInSeconds();
+        address owner = treasuryManager.owner();
+
         vm.startPrank(treasuryManager.owner());
         TreasuryManager newTreasuryManger = new TreasuryManager(
             NotionalTreasuryAction(address(NOTIONAL)),
@@ -31,7 +35,10 @@ abstract contract TreasuryManagerTest is Test {
             TRADING_MODULE
         );
 
-        treasuryManager.upgradeTo(address(newTreasuryManger));
+        treasuryManager.upgradeToAndCall(
+            address(newTreasuryManger),
+            abi.encodeWithSelector(TreasuryManager.initialize.selector, owner, manager, coolDownTimeInSeconds)
+        );
     }
 
     function setUp() public {
@@ -43,20 +50,31 @@ abstract contract TreasuryManagerTest is Test {
         uint32 maxOracleWindowSize = treasuryManager.MAX_ORACLE_WINDOW_SIZE();
 
         address manager = treasuryManager.manager();
-        uint256 notPurchaseLimit = treasuryManager.notePurchaseLimit();
+        uint256 notePurchaseLimit = treasuryManager.notePurchaseLimit();
         uint32 coolDownTimeInSeconds = treasuryManager.coolDownTimeInSeconds();
         uint32 lastInvestTimestamp = treasuryManager.lastInvestTimestamp();
         uint32 priceOracleWindowInSeconds = treasuryManager.priceOracleWindowInSeconds();
+        address owner = treasuryManager.owner();
 
         _upgradeTreasuryManager();
 
         assertEq(maximumCoolDownPeriodSeconds, treasuryManager.MAXIMUM_COOL_DOWN_PERIOD_SECONDS(), "1");
         assertEq(maxOracleWindowSize, treasuryManager.MAX_ORACLE_WINDOW_SIZE(), "2");
         assertEq(manager, treasuryManager.manager(), "3");
-        assertEq(notPurchaseLimit, treasuryManager.notePurchaseLimit(), "4");
+        assertEq(notePurchaseLimit, treasuryManager.notePurchaseLimit(), "4");
         assertEq(coolDownTimeInSeconds, treasuryManager.coolDownTimeInSeconds(), "5");
         assertEq(lastInvestTimestamp, treasuryManager.lastInvestTimestamp(), "6");
         assertEq(priceOracleWindowInSeconds, treasuryManager.priceOracleWindowInSeconds(), "7");
+        assertEq(owner, treasuryManager.owner(), "8");
+
+        vm.startPrank(owner);
+        TreasuryManager newTreasuryManger = new TreasuryManager(
+            NotionalTreasuryAction(address(NOTIONAL)),
+            WETH,
+            TRADING_MODULE
+        );
+
+        treasuryManager.upgradeTo(address(newTreasuryManger));
     }
 
 }

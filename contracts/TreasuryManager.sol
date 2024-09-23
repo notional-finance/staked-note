@@ -223,6 +223,19 @@ contract TreasuryManager is
         }
     }
 
+    function claimAndReinvestVaultReward(
+        address vault,
+        IStrategyVault.SingleSidedRewardTradeParams[] calldata trades,
+        uint256 minPoolClaim
+    ) public onlyManager returns (
+        uint256 amountSold,
+        uint256 poolClaimAmount
+    ) {
+        IStrategyVault(vault).claimRewardTokens();
+        return reinvestVaultReward(vault, trades, minPoolClaim);
+    }
+        
+
     /*** Manager Functionality  ***/
 
     /// @dev Will need to add a this method as a separate action behind the notional proxy

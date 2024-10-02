@@ -207,7 +207,7 @@ contract TreasuryManager is
         address vault,
         IStrategyVault.SingleSidedRewardTradeParams[][] calldata tradesPerRewardToken,
         uint256[] calldata minPoolClaims
-    ) external onlyManager returns (
+    ) public onlyManager returns (
         address[] memory rewardTokens,
         uint256[] memory amountsSold,
         uint256[] memory poolClaimAmounts
@@ -225,14 +225,15 @@ contract TreasuryManager is
 
     function claimAndReinvestVaultReward(
         address vault,
-        IStrategyVault.SingleSidedRewardTradeParams[] calldata trades,
-        uint256 minPoolClaim
-    ) public onlyManager returns (
-        uint256 amountSold,
-        uint256 poolClaimAmount
+        IStrategyVault.SingleSidedRewardTradeParams[][] calldata tradesPerRewardToken,
+        uint256[] calldata minPoolClaims
+    ) external onlyManager returns (
+        address[] memory rewardTokens,
+        uint256[] memory amountsSold,
+        uint256[] memory poolClaimAmounts
     ) {
         IStrategyVault(vault).claimRewardTokens();
-        return reinvestVaultReward(vault, trades, minPoolClaim);
+        return reinvestVaultReward(vault, tradesPerRewardToken, minPoolClaims);
     }
         
 

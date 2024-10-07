@@ -18,8 +18,7 @@ contract DeployTreasuryManager is Script {
     mapping(uint256 => string) configFiles;
 
     function run() external {
-        configFiles[1] = "v2.mainnet.json";
-        configFiles[5] = "v2.goerli.json";
+        configFiles[1] = "v3.mainnet.json";
         configFiles[42161] = "v3.arbitrum-one.json";
 
         console.log("Deploying to chainid: ", block.chainid);
@@ -43,16 +42,13 @@ contract DeployTreasuryManager is Script {
             tradingModule
         );
 
-        treasuryManager.upgradeToAndCall(
-            address(newTreasuryManger),
-            abi.encodeWithSelector(TreasuryManager.initialize.selector, owner, manager, coolDownTimeInSeconds)
-        );
-
-        treasuryManager.initialize(
-            owner,
-            manager,
-            coolDownTimeInSeconds
-        );
         vm.stopBroadcast();
+
+        vm.prank(owner);
+        treasuryManager.upgradeTo(address(newTreasuryManger));
+
+        console.log("owner: ", treasuryManager.owner());
+        console.log("manager: ", treasuryManager.manager());
+        console.log("coolDownTimeInSeconds: ", treasuryManager.coolDownTimeInSeconds());
     }
 }
